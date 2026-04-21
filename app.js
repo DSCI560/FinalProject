@@ -51,7 +51,9 @@ const state = {
   chunks:    [],
   // Backend IDs
   userId:   null,
-  cohortId: null
+  cohortId: null,
+  // AI state
+  aiStreaming: false,
 };
 
 // ── DOM references ────────────────────────────────────────────────────────────
@@ -363,6 +365,9 @@ function handleSend() {
     return;
   }
 
+  // Block sending while AI is streaming
+  if (state.aiStreaming) return;
+
   const text = messageInput.value.trim();
   if (!text) return;
 
@@ -388,8 +393,19 @@ function handleSend() {
   }
 
   if (text.toLowerCase().startsWith("@ai")) {
-    const question = text.replace(/^@ai\s*/i, "").trim();
-    respondToAi(question);
+    const afterAi = text.replace(/^@ai\s*/i, "").trim();
+
+    // Detect document generation triggers
+    const docMatch = afterAi.match(
+      /^(?:generate\s+doc(?:ument)?|create\s+doc(?:ument)?|make\s+doc(?:ument)?|write\s+doc(?:ument)?)\s*(.*)/i
+    );
+
+    if (docMatch) {
+      const docPrompt = docMatch[1].trim() || afterAi;
+      generateDocument(docPrompt);
+    } else {
+      respondToAi(afterAi);
+    }
   }
 }
 
@@ -430,6 +446,34 @@ function seedMessages() {
   addMessage("human",   "Bride",        "I want the floral style to stay modern and minimal.");
 }
 
+// ── Typing indicator ─────────────────────────────────────────────────────────
+function showTypingIndicator() {
+  removeTypingIndicator();
+  const indicator = document.createElement("article");
+  indicator.className = "message ai typing-indicator-msg";
+  indicator.id = "ai-typing-indicator";
+  indicator.innerHTML = `
+    <div class="message-avatar"></div>
+    <div class="message-body">
+      <div class="message-meta">
+        <strong class="message-author">AI Assistant</strong>
+      </div>
+      <div class="typing-indicator">
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+      </div>
+    </div>
+  `;
+  chatFeed.appendChild(indicator);
+  chatFeed.scrollTop = chatFeed.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const existing = document.getElementById("ai-typing-indicator");
+  if (existing) existing.remove();
+}
+
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderMessages() {
   chatFeed.innerHTML = "";
@@ -440,7 +484,7 @@ function renderMessages() {
     node.classList.add(message.type);
     node.querySelector(".message-author").textContent = message.author;
     node.querySelector(".message-time").textContent   = formatTime(message.time);
-    node.querySelector(".message-text").innerHTML     = formatMessage(message.text);
+    node.querySelector(".message-text").innerHTML     = formatMessage(message.text, message.type);
     chatFeed.appendChild(node);
   }
 
@@ -581,7 +625,7 @@ function addDocumentFromText(name, text) {
   renderResources();
 }
 
-// ── AI Retrieval ──────────────────────────────────────────────────────────────
+// ── AI Retrieval (streaming) ─────────────────────────────────────────────────
 function respondToAi(question) {
   if (!question) {
     addMessage("ai", "AI Assistant", "Ask a question after `@ai` so I can search the knowledge base.");
@@ -591,21 +635,113 @@ function respondToAi(question) {
   retrievalLabel.textContent = "Querying…";
 
   if (backendOnline && state.cohortId) {
-    apiPost("/api/ai-query", {
-      cohort_id: state.cohortId,
-      question,
-      user_id:   state.userId
+    // Show typing indicator
+    showTypingIndicator();
+    state.aiStreaming = true;
+
+    // Use streaming endpoint
+    fetch(`${BACKEND_URL}/api/ai-query-stream`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        cohort_id: state.cohortId,
+        question,
+        user_id:   state.userId
+      })
     })
-      .then(data => {
-        const sourceNote = data.sources && data.sources.length
-          ? `\n\nSources: ${data.sources.join(", ")}`
-          : "";
-        addMessage("ai", "AI Assistant", data.response + sourceNote);
-        retrievalLabel.textContent = data.sources && data.sources.length
-          ? "Retrieval grounded in ChromaDB docs"
-          : "Answered from general knowledge";
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const reader  = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer    = "";
+        let fullText  = "";
+        let sources   = [];
+        let msgNode   = null;  // the DOM node we update live
+
+        function processSSE(text) {
+          buffer += text;
+          const lines = buffer.split("\n");
+          buffer = lines.pop(); // keep incomplete line
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6);
+            try {
+              const evt = JSON.parse(jsonStr);
+
+              if (evt.type === "sources") {
+                sources = evt.sources || [];
+              }
+
+              if (evt.type === "chunk") {
+                // First chunk → replace typing indicator with real message
+                if (!msgNode) {
+                  removeTypingIndicator();
+                  // Create a live AI message node
+                  const template = document.getElementById("message-template");
+                  msgNode = template.content.firstElementChild.cloneNode(true);
+                  msgNode.classList.add("ai");
+                  msgNode.querySelector(".message-author").textContent = "AI Assistant";
+                  msgNode.querySelector(".message-time").textContent   = formatTime(new Date());
+                  msgNode.querySelector(".message-text").innerHTML     = "";
+                  chatFeed.appendChild(msgNode);
+                }
+                fullText += evt.content;
+                // Re-render the full markdown each chunk for correct formatting
+                msgNode.querySelector(".message-text").innerHTML = renderMarkdown(fullText);
+                chatFeed.scrollTop = chatFeed.scrollHeight;
+              }
+
+              if (evt.type === "done") {
+                // Add source note
+                if (sources.length) {
+                  fullText += `\n\n*Sources: ${sources.join(", ")}*`;
+                  if (msgNode) {
+                    msgNode.querySelector(".message-text").innerHTML = renderMarkdown(fullText);
+                  }
+                }
+
+                // Save to state
+                state.messages.push({
+                  id:     crypto.randomUUID(),
+                  type:   "ai",
+                  author: "AI Assistant",
+                  text:   fullText,
+                  time:   new Date()
+                });
+                persistHistory();
+
+                retrievalLabel.textContent = sources.length
+                  ? "Retrieval grounded in ChromaDB docs"
+                  : "Answered from general knowledge";
+                state.aiStreaming = false;
+              }
+            } catch (e) {
+              // skip malformed JSON
+            }
+          }
+        }
+
+        function pump() {
+          return reader.read().then(({ done, value }) => {
+            if (done) {
+              // Process any remaining buffer
+              if (buffer.trim()) processSSE("\n");
+              state.aiStreaming = false;
+              removeTypingIndicator();
+              return;
+            }
+            processSSE(decoder.decode(value, { stream: true }));
+            return pump();
+          });
+        }
+
+        return pump();
       })
       .catch(() => {
+        removeTypingIndicator();
+        state.aiStreaming = false;
         retrievalLabel.textContent = "Error";
         addMessage("ai", "AI Assistant",
           "Backend error while querying. Check that OPENAI_API_KEY is set in backend/.env.");
@@ -613,8 +749,10 @@ function respondToAi(question) {
     return;
   }
 
-  // Local bag-of-words fallback
+  // Local bag-of-words fallback (non-streaming)
+  showTypingIndicator();
   setTimeout(() => {
+    removeTypingIndicator();
     const results = searchKnowledgeBase(question);
     retrievalLabel.textContent = results.length
       ? "Retrieval grounded in docs"
@@ -628,6 +766,64 @@ function respondToAi(question) {
 
     addMessage("ai", "AI Assistant", buildAnswer(question, results[0], results[1]));
   }, 450);
+}
+
+// ── Document generation ──────────────────────────────────────────────────────
+function generateDocument(prompt) {
+  if (!prompt) {
+    addMessage("ai", "AI Assistant",
+      "Please describe what document you'd like after `@ai generate doc`. For example:\n`@ai generate doc vendor schedule and contact details`");
+    return;
+  }
+
+  retrievalLabel.textContent = "Generating document…";
+  showTypingIndicator();
+  state.aiStreaming = true;
+
+  if (backendOnline && state.cohortId) {
+    apiPost("/api/generate-doc", {
+      cohort_id: state.cohortId,
+      user_id:   state.userId,
+      prompt:    prompt
+    })
+      .then(data => {
+        removeTypingIndicator();
+        state.aiStreaming = false;
+
+        const sourceNote = data.sources && data.sources.length
+          ? `\n\n*Sources used: ${data.sources.join(", ")}*`
+          : "";
+        const downloadUrl = `${BACKEND_URL}/api/download-doc/${data.doc_id}`;
+        const msg = `**Your document has been generated!**\n\n`
+          + `**Document:** ${data.filename}\n`
+          + `**Sections:** ${data.sections}${sourceNote}\n\n`
+          + `[Download Document](${downloadUrl})`;
+
+        addMessage("ai", "AI Assistant", msg);
+        retrievalLabel.textContent = "Document generated";
+      })
+      .catch(async (err) => {
+        removeTypingIndicator();
+        state.aiStreaming = false;
+        let errorMsg = "Failed to generate document.";
+        try {
+          if (err.response) {
+            const errData = await err.response.json();
+            errorMsg = errData.error || errorMsg;
+          }
+        } catch {}
+        addMessage("ai", "AI Assistant", `**Error:** ${errorMsg}\nPlease check that the backend is running and OPENAI_API_KEY is set.`);
+        retrievalLabel.textContent = "Document generation failed";
+      });
+    return;
+  }
+
+  // No backend
+  removeTypingIndicator();
+  state.aiStreaming = false;
+  addMessage("ai", "AI Assistant",
+    "Document generation requires the Flask backend to be running. Start it with `cd backend && python app.py` and reload.");
+  retrievalLabel.textContent = "Backend offline";
 }
 
 function searchKnowledgeBase(question) {
@@ -717,6 +913,37 @@ function cosineSimilarity(a, b) {
   return (!magA || !magB) ? 0 : dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
+// ── Markdown rendering ───────────────────────────────────────────────────────
+function renderMarkdown(text) {
+  if (typeof marked !== "undefined") {
+    // Use marked.js for full markdown parsing
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+      sanitize: false,
+    });
+    return marked.parse(text);
+  }
+  // Fallback if marked.js hasn't loaded
+  return fallbackMarkdown(text);
+}
+
+function fallbackMarkdown(text) {
+  // Basic markdown rendering without external lib
+  let html = escapeHtml(text);
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  // Italic
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  // Links [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="chat-link">$1</a>');
+  // Line breaks
+  html = html.replace(/\n/g, "<br>");
+  return html;
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────────────
 function sanitizeName(v) { return v.replace(/\s+/g, " ").trim(); }
 
@@ -724,7 +951,12 @@ function formatTime(date) {
   return new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }).format(date);
 }
 
-function formatMessage(text) {
+function formatMessage(text, type) {
+  // Use markdown rendering for AI messages, basic formatting for others
+  if (type === "ai") {
+    return renderMarkdown(text);
+  }
+  // Human / system messages: simple escape + code + line breaks
   return escapeHtml(text)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\n/g, "<br>");
