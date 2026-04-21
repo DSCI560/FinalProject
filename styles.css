@@ -380,3 +380,66 @@ code {
 /* ── Backend status badge ──────────────────────────────────────────────────── */
 .backend-online  { background: #2a7a2a; color: #fff; }
 .backend-offline { background: #888;    color: #fff; }
+
+/* ── Auth panel ────────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+.auth-error {
+  min-height: 1.3em;
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.auth-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.auth-buttons .button {
+  flex: 1;
+}
+
+.auth-hint {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #c9ab7a, var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.button-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  font-weight: 500;
+  font-size: 0.92rem;
+}
+
+.button-ghost:hover {
+  background: var(--panel-strong);
+  color: var(--ink);
+}

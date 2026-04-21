@@ -3,58 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Cohort Assistant - Milestone 2 Demo</title>
+  <title>Wed Board – AI Wedding Planner</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand-card">
-        <p class="eyebrow"> </p>
+        <p class="eyebrow">AI-Powered</p>
         <h1>Wed Board</h1>
-        <p class="muted">
-          Your wedding ceremony. One shared brain.
-        </p>
+        <p class="muted">Your wedding ceremony. One shared brain.</p>
       </div>
 
-      <section class="panel">
+      <!-- ── LOGIN / REGISTER PANEL ──────────────────────────── -->
+      <section class="panel" id="auth-panel">
         <div class="panel-header">
-          <h2>Event Controls</h2>
+          <h2 id="auth-title">Sign In</h2>
         </div>
-        <label class="field">
-          <span>Your name</span>
-          <input id="username" type="text" value="Planner" maxlength="30">
-        </label>
-        <label class="field">
-          <span>Wedding Workspace</span>
-          <select id="cohort-select">
-            <option value="Mia & Ethan Wedding">Mia & Ethan Wedding</option>
-            <option value="Ada & Leon Wedding">Ada & Leon Wedding</option>
-            <option value="Jill & Carlos Wedding">Jill & Carlos Wedding</option>
-          </select>
-        </label>
-        <button id="join-button" class="button button-primary" type="button">Open Wedding Chat</button>
+
+        <!-- Auth form (shown when logged out) -->
+        <div id="auth-form">
+          <label class="field">
+            <span>Username</span>
+            <input id="auth-username" type="text" placeholder="your name" maxlength="30" autocomplete="username">
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input id="auth-password" type="password" placeholder="••••••••" maxlength="64" autocomplete="current-password">
+          </label>
+          <p id="auth-error" class="auth-error" aria-live="polite"></p>
+          <div class="auth-buttons">
+            <button id="login-button"    class="button button-primary"   type="button">Sign In</button>
+            <button id="register-button" class="button button-secondary" type="button">Create Account</button>
+          </div>
+          <p class="muted small auth-hint" id="auth-hint">New here? Click <em>Create Account</em>.</p>
+        </div>
+
+        <!-- Logged-in state -->
+        <div id="auth-logged-in" class="hidden">
+          <div class="user-badge">
+            <div class="user-avatar" id="user-avatar-badge"></div>
+            <div>
+              <strong id="logged-in-name"></strong>
+              <p class="muted small" style="margin:2px 0 0">Signed in</p>
+            </div>
+          </div>
+
+          <label class="field" style="margin-top:14px">
+            <span>Wedding Workspace</span>
+            <select id="cohort-select">
+              <option value="Mia & Ethan Wedding">Mia &amp; Ethan Wedding</option>
+              <option value="Ada & Leon Wedding">Ada &amp; Leon Wedding</option>
+              <option value="Jill & Carlos Wedding">Jill &amp; Carlos Wedding</option>
+            </select>
+          </label>
+          <button id="open-chat-button" class="button button-primary" type="button" style="width:100%;margin-top:4px">Open Wedding Chat</button>
+
+          <button id="logout-button" class="button button-ghost" type="button" style="width:100%;margin-top:10px">
+            Sign Out
+          </button>
+        </div>
       </section>
 
+      <!-- ── KNOWLEDGE BASE ─────────────────────────────────── -->
       <section class="panel">
         <div class="panel-header">
           <h2>Knowledge Base</h2>
           <span id="doc-count" class="pill">0 docs</span>
         </div>
         <p class="muted small">
-          Upload planning notes, vendor details, schedules, contracts, or inspiration images. Text files are chunked into small semantic sections for local retrieval.
+          Upload planning notes, vendor details, schedules, contracts, or inspiration images.
         </p>
         <div class="upload-row">
           <label class="button button-secondary file-button" for="file-input">Upload Files</label>
           <button id="load-sample" class="button button-secondary" type="button">Load Sample Doc</button>
           <input id="file-input" type="file" multiple accept=".txt,.md,.json,image/*">
         </div>
-        <div id="knowledge-status" class="status-box">
-          No wedding documents uploaded yet.
-        </div>
+        <div id="knowledge-status" class="status-box">No wedding documents uploaded yet.</div>
         <div id="resource-list" class="resource-list"></div>
       </section>
 
+      <!-- ── BACKEND STACK ──────────────────────────────────── -->
       <section class="panel">
         <div class="panel-header">
           <h2>Backend Stack</h2>
@@ -72,8 +101,8 @@
     <main class="main-panel">
       <header class="topbar">
         <div>
-          <p class="eyebrow"> </p>
-          <h2 id="chat-title">Mia & Ethan Wedding</h2>
+          <p class="eyebrow" id="topbar-user-label"> </p>
+          <h2 id="chat-title">Wed Board</h2>
         </div>
         <div class="topbar-status">
           <span id="backend-status" class="pill backend-offline">Backend offline</span>
@@ -88,8 +117,8 @@
           <span id="retrieval-label">Retrieval idle</span>
         </div>
         <div class="composer-row">
-          <textarea id="message-input" rows="3" placeholder="Message the planner team or ask @ai a question..."></textarea>
-          <button id="send-button" class="button button-primary" type="button">Send</button>
+          <textarea id="message-input" rows="3" placeholder="Sign in to start messaging…" disabled></textarea>
+          <button id="send-button" class="button button-primary" type="button" disabled>Send</button>
         </div>
       </section>
     </main>

@@ -1,3 +1,4 @@
+// ── Sample document ───────────────────────────────────────────────────────────
 const SAMPLE_DOC = `AI Wedding Planner - Event Planning Brief
 
 Event overview:
@@ -26,61 +27,171 @@ Milestone 1 demo goals:
 - Ask the assistant a schedule or vendor question.
 - Return an answer grounded in the uploaded material.`;
 
+// ── NLP helpers ───────────────────────────────────────────────────────────────
 const STOP_WORDS = new Set([
-  "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has",
-  "have", "in", "is", "it", "its", "of", "on", "or", "that", "the", "to",
-  "was", "were", "will", "with", "what", "when", "where", "who", "how", "why",
-  "we", "you", "your", "our", "this", "these", "those", "they", "their", "i"
+  "a","an","and","are","as","at","be","by","for","from","has",
+  "have","in","is","it","its","of","on","or","that","the","to",
+  "was","were","will","with","what","when","where","who","how","why",
+  "we","you","your","our","this","these","those","they","their","i"
 ]);
 
 // ── Backend configuration ─────────────────────────────────────────────────────
 const BACKEND_URL = "http://localhost:5000";
 let backendOnline = false;
 
+// ── App state ─────────────────────────────────────────────────────────────────
 const state = {
-  joined: false,
-  userName: "Planner",
-  cohort: "Mia & Ethan Wedding",
-  messages: [],
+  // Auth
+  currentUser: null,          // { id, username }
+  // Chat
+  joined:    false,
+  cohort:    "Mia & Ethan Wedding",
+  messages:  [],
   resources: [],
-  chunks: [],
-  userId: null,
+  chunks:    [],
+  // Backend IDs
+  userId:   null,
   cohortId: null
 };
 
-const chatFeed = document.getElementById("chat-feed");
-const usernameInput = document.getElementById("username");
-const cohortSelect = document.getElementById("cohort-select");
-const joinButton = document.getElementById("join-button");
-const sendButton = document.getElementById("send-button");
-const messageInput = document.getElementById("message-input");
-const chatTitle = document.getElementById("chat-title");
-const fileInput = document.getElementById("file-input");
-const resourceList = document.getElementById("resource-list");
+// ── DOM references ────────────────────────────────────────────────────────────
+const chatFeed        = document.getElementById("chat-feed");
+const sendButton      = document.getElementById("send-button");
+const messageInput    = document.getElementById("message-input");
+const chatTitle       = document.getElementById("chat-title");
+const topbarUserLabel = document.getElementById("topbar-user-label");
+const fileInput       = document.getElementById("file-input");
+const resourceList    = document.getElementById("resource-list");
 const knowledgeStatus = document.getElementById("knowledge-status");
-const docCount = document.getElementById("doc-count");
-const loadSampleButton = document.getElementById("load-sample");
-const retrievalLabel = document.getElementById("retrieval-label");
-const backendStatus  = document.getElementById("backend-status");
+const docCount        = document.getElementById("doc-count");
+const loadSampleBtn   = document.getElementById("load-sample");
+const retrievalLabel  = document.getElementById("retrieval-label");
+const backendStatusEl = document.getElementById("backend-status");
+const cohortSelect    = document.getElementById("cohort-select");
 
-seedMessages();
-renderMessages();
-renderResources();
+// Auth panel
+const authPanel        = document.getElementById("auth-panel");
+const authForm         = document.getElementById("auth-form");
+const authLoggedIn     = document.getElementById("auth-logged-in");
+const authTitle        = document.getElementById("auth-title");
+const authUsernameInput= document.getElementById("auth-username");
+const authPasswordInput= document.getElementById("auth-password");
+const authError        = document.getElementById("auth-error");
+const loginButton      = document.getElementById("login-button");
+const registerButton   = document.getElementById("register-button");
+const logoutButton     = document.getElementById("logout-button");
+const openChatButton   = document.getElementById("open-chat-button");
+const loggedInName     = document.getElementById("logged-in-name");
+const userAvatarBadge  = document.getElementById("user-avatar-badge");
+
+// ── Initialise ────────────────────────────────────────────────────────────────
 checkBackend();
+restoreSession();
+renderWelcomeFeed();
 
-joinButton.addEventListener("click", async () => {
-  state.userName = sanitizeName(usernameInput.value) || "Team Member";
-  state.cohort   = cohortSelect.value;
-  state.joined   = true;
+// ── Auth: localStorage schema ─────────────────────────────────────────────────
+// wedboard:users          → { [username_lc]: { id, username, pwHash } }
+// wedboard:session        → { userId, username }
+// wedboard:history:<uid>:<cohort> → [ { type, author, text, time } ]
+
+function getUsers() {
+  try { return JSON.parse(localStorage.getItem("wedboard:users") || "{}"); }
+  catch { return {}; }
+}
+function saveUsers(users) {
+  localStorage.setItem("wedboard:users", JSON.stringify(users));
+}
+function getHistory(userId, cohort) {
+  const key = `wedboard:history:${userId}:${cohort}`;
+  try { return JSON.parse(localStorage.getItem(key) || "[]"); }
+  catch { return []; }
+}
+function saveHistory(userId, cohort, messages) {
+  const key = `wedboard:history:${userId}:${cohort}`;
+  // Persist up to 200 messages to avoid quota issues
+  const slice = messages.slice(-200);
+  localStorage.setItem(key, JSON.stringify(slice));
+}
+
+/** Very simple deterministic hash — not cryptographic, fine for a local demo */
+function simpleHash(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+function restoreSession() {
+  try {
+    const session = JSON.parse(localStorage.getItem("wedboard:session") || "null");
+    if (session && session.userId && session.username) {
+      state.currentUser = { id: session.userId, username: session.username };
+      showLoggedInUI();
+    } else {
+      showLoggedOutUI();
+    }
+  } catch {
+    showLoggedOutUI();
+  }
+}
+
+function showLoggedOutUI() {
+  authForm.classList.remove("hidden");
+  authLoggedIn.classList.add("hidden");
+  authTitle.textContent = "Sign In";
+  authError.textContent = "";
+  authUsernameInput.value = "";
+  authPasswordInput.value = "";
+  messageInput.disabled = true;
+  messageInput.placeholder = "Sign in to start messaging…";
+  sendButton.disabled = true;
+}
+
+function showLoggedInUI() {
+  authForm.classList.add("hidden");
+  authLoggedIn.classList.remove("hidden");
+  loggedInName.textContent = state.currentUser.username;
+  userAvatarBadge.textContent = state.currentUser.username.charAt(0).toUpperCase();
+  topbarUserLabel.textContent = `Signed in as ${state.currentUser.username}`;
+  messageInput.disabled = false;
+  messageInput.placeholder = "Message the planner team or ask @ai a question…";
+  sendButton.disabled = false;
+}
+
+// ── Auth event listeners ──────────────────────────────────────────────────────
+
+// Allow Enter key in password field to trigger login
+authPasswordInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); doLogin(); }
+});
+authUsernameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); doLogin(); }
+});
+
+loginButton.addEventListener("click", doLogin);
+registerButton.addEventListener("click", doRegister);
+logoutButton.addEventListener("click", doLogout);
+
+openChatButton.addEventListener("click", async () => {
+  state.cohort = cohortSelect.value;
+  state.joined = true;
   chatTitle.textContent = state.cohort;
+
+  // Load this user's saved history for the selected workspace
+  loadLocalHistory();
 
   if (backendOnline) {
     try {
-      const res = await apiPost("/api/join", { username: state.userName, cohort: state.cohort });
+      const res = await apiPost("/api/join", {
+        username: state.currentUser.username,
+        cohort:   state.cohort
+      });
       state.userId   = res.user_id;
       state.cohortId = res.cohort_id;
 
-      // Load persisted message history from SQLite
+      // Merge server history on top
       const history = await apiGet(`/api/messages?cohort_id=${state.cohortId}`);
       if (history.length) {
         state.messages = [];
@@ -94,22 +205,149 @@ joinButton.addEventListener("click", async () => {
           });
         });
         renderMessages();
-        addMessage("system", "System",
-          `${state.userName} rejoined ${state.cohort}. Chat history loaded from SQLite.`);
-      } else {
-        addMessage("system", "System",
-          `${state.userName} joined ${state.cohort}. Connected to Flask + SQLite + ChromaDB.`);
+        appendSystemMsg(`${state.currentUser.username} rejoined ${state.cohort}. History loaded from server.`);
+        return;
       }
-    } catch (err) {
-      addMessage("system", "System",
-        `${state.userName} joined ${state.cohort}. (Backend error – running in local mode.)`);
-    }
+    } catch { /* fall through to local */ }
+  }
+
+  // Local path
+  if (state.messages.length <= 1) {
+    // Fresh workspace — seed intro messages
+    seedMessages();
   } else {
-    addMessage("system", "System",
-      `${state.userName} joined ${state.cohort}. Ready for demo.`);
+    appendSystemMsg(`Welcome back, ${state.currentUser.username}! Continuing ${state.cohort}.`);
   }
 });
 
+function doLogin() {
+  authError.textContent = "";
+  const username = authUsernameInput.value.trim();
+  const password = authPasswordInput.value;
+
+  if (!username || !password) {
+    authError.textContent = "Please enter your username and password.";
+    return;
+  }
+
+  const users = getUsers();
+  const key   = username.toLowerCase();
+  const user  = users[key];
+
+  if (!user) {
+    authError.textContent = "Account not found. Click Create Account to register.";
+    return;
+  }
+
+  if (user.pwHash !== simpleHash(password)) {
+    authError.textContent = "Incorrect password. Please try again.";
+    return;
+  }
+
+  state.currentUser = { id: user.id, username: user.username };
+  localStorage.setItem("wedboard:session", JSON.stringify({
+    userId:   user.id,
+    username: user.username
+  }));
+
+  showLoggedInUI();
+  renderWelcomeFeed();
+}
+
+function doRegister() {
+  authError.textContent = "";
+  const username = authUsernameInput.value.trim();
+  const password = authPasswordInput.value;
+
+  if (!username) {
+    authError.textContent = "Please choose a username.";
+    return;
+  }
+  if (username.length < 2) {
+    authError.textContent = "Username must be at least 2 characters.";
+    return;
+  }
+  if (!password || password.length < 4) {
+    authError.textContent = "Password must be at least 4 characters.";
+    return;
+  }
+
+  const users = getUsers();
+  const key   = username.toLowerCase();
+
+  if (users[key]) {
+    authError.textContent = "That username is taken. Try signing in instead.";
+    return;
+  }
+
+  const newUser = {
+    id:       crypto.randomUUID(),
+    username: username,
+    pwHash:   simpleHash(password)
+  };
+  users[key] = newUser;
+  saveUsers(users);
+
+  state.currentUser = { id: newUser.id, username: newUser.username };
+  localStorage.setItem("wedboard:session", JSON.stringify({
+    userId:   newUser.id,
+    username: newUser.username
+  }));
+
+  showLoggedInUI();
+  renderWelcomeFeed();
+  appendSystemMsg(`Welcome to Wed Board, ${newUser.username}! Your account has been created.`);
+}
+
+function doLogout() {
+  // Save current history before logging out
+  if (state.currentUser && state.joined) {
+    saveHistory(state.currentUser.id, state.cohort, state.messages);
+  }
+
+  state.currentUser = null;
+  state.joined      = false;
+  state.messages    = [];
+  state.resources   = [];
+  state.chunks      = [];
+  state.userId      = null;
+  state.cohortId    = null;
+
+  localStorage.removeItem("wedboard:session");
+
+  chatTitle.textContent = "Wed Board";
+  topbarUserLabel.textContent = " ";
+  showLoggedOutUI();
+  renderWelcomeFeed();
+  renderResources();
+}
+
+// ── Chat history helpers ──────────────────────────────────────────────────────
+function loadLocalHistory() {
+  if (!state.currentUser) return;
+
+  const stored = getHistory(state.currentUser.id, state.cohort);
+  if (stored.length) {
+    state.messages = stored.map(m => ({
+      ...m,
+      id:   crypto.randomUUID(),
+      time: new Date(m.time)
+    }));
+    renderMessages();
+  } else {
+    state.messages = [];
+    renderMessages();
+  }
+}
+
+/** Persist current messages after every mutation */
+function persistHistory() {
+  if (state.currentUser && state.joined) {
+    saveHistory(state.currentUser.id, state.cohort, state.messages);
+  }
+}
+
+// ── Messaging ────────────────────────────────────────────────────────────────
 sendButton.addEventListener("click", handleSend);
 messageInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
@@ -118,60 +356,28 @@ messageInput.addEventListener("keydown", (event) => {
   }
 });
 
-fileInput.addEventListener("change", async (event) => {
-  const files = Array.from(event.target.files || []);
-  if (!files.length) {
-    return;
-  }
-
-  for (const file of files) {
-    if (file.type.startsWith("image/")) {
-      await addImageResource(file);
-    } else {
-      await addTextResource(file);
-    }
-  }
-
-  fileInput.value = "";
-  renderResources();
-});
-
-loadSampleButton.addEventListener("click", async () => {
-  if (backendOnline && state.cohortId) {
-    const blob = new Blob([SAMPLE_DOC], { type: "text/plain" });
-    const file = new File([blob], "sample-wedding-plan.txt", { type: "text/plain" });
-    await addTextResource(file);
-  } else {
-    addDocumentFromText("sample-wedding-plan.txt", SAMPLE_DOC);
-    addMessage("system", "System",
-      "Loaded sample doc locally. Ask `@ai what time does the ceremony start?`");
-  }
-});
-
-function seedMessages() {
-  addMessage("system", "System", "Welcome to AI Wedding Planner. Open a wedding workspace to begin.");
-  addMessage("human", "Lead Planner", "I uploaded the event schedule draft and vendor checklist.");
-  addMessage("human", "Photographer", "Please confirm the ceremony start time before I finalize my arrival.");
-  addMessage("human", "Bride", "I want the floral style to stay modern and minimal.");
-}
-
 function handleSend() {
-  const text = messageInput.value.trim();
-  if (!text) {
+  if (!state.currentUser) {
+    authError.textContent = "Please sign in first.";
+    authUsernameInput.focus();
     return;
   }
+
+  const text = messageInput.value.trim();
+  if (!text) return;
 
   if (!state.joined) {
-    state.userName = sanitizeName(usernameInput.value) || "Team Member";
-    state.cohort   = cohortSelect.value;
-    state.joined   = true;
+    // Auto-open last selected cohort if user hits Send without clicking "Open"
+    state.cohort = cohortSelect.value;
+    state.joined = true;
     chatTitle.textContent = state.cohort;
+    loadLocalHistory();
   }
 
-  addMessage("human", state.userName, text);
+  addMessage("human", state.currentUser.username, text);
   messageInput.value = "";
 
-  // Persist human message to SQLite
+  // Persist to backend if available
   if (backendOnline && state.cohortId) {
     apiPost("/api/message", {
       cohort_id:   state.cohortId,
@@ -189,15 +395,42 @@ function handleSend() {
 
 function addMessage(type, author, text) {
   state.messages.push({
-    id: crypto.randomUUID(),
+    id:     crypto.randomUUID(),
     type,
     author,
     text,
-    time: new Date()
+    time:   new Date()
   });
   renderMessages();
+  persistHistory();
 }
 
+function appendSystemMsg(text) {
+  addMessage("system", "System", text);
+}
+
+function renderWelcomeFeed() {
+  if (!state.currentUser) {
+    state.messages = [];
+    addMessage("system", "System", "Welcome to AI Wedding Planner. Sign in or create an account to begin.");
+    return;
+  }
+  if (!state.joined) {
+    state.messages = [];
+    addMessage("system", "System",
+      `Hello, ${state.currentUser.username}! Select a wedding workspace and click Open Wedding Chat.`);
+  }
+}
+
+// ── Seed messages (first-time workspace) ─────────────────────────────────────
+function seedMessages() {
+  addMessage("system",  "System",       `${state.currentUser.username} opened ${state.cohort}. Ready for demo.`);
+  addMessage("human",   "Lead Planner", "I uploaded the event schedule draft and vendor checklist.");
+  addMessage("human",   "Photographer", "Please confirm the ceremony start time before I finalize my arrival.");
+  addMessage("human",   "Bride",        "I want the floral style to stay modern and minimal.");
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
 function renderMessages() {
   chatFeed.innerHTML = "";
   const template = document.getElementById("message-template");
@@ -206,8 +439,8 @@ function renderMessages() {
     const node = template.content.firstElementChild.cloneNode(true);
     node.classList.add(message.type);
     node.querySelector(".message-author").textContent = message.author;
-    node.querySelector(".message-time").textContent = formatTime(message.time);
-    node.querySelector(".message-text").innerHTML = formatMessage(message.text);
+    node.querySelector(".message-time").textContent   = formatTime(message.time);
+    node.querySelector(".message-text").innerHTML     = formatMessage(message.text);
     chatFeed.appendChild(node);
   }
 
@@ -220,7 +453,7 @@ function renderResources() {
 
   if (!state.resources.length) {
     knowledgeStatus.textContent = "No wedding documents uploaded yet.";
-    retrievalLabel.textContent = "Retrieval idle";
+    retrievalLabel.textContent  = "Retrieval idle";
     return;
   }
 
@@ -241,14 +474,43 @@ function renderResources() {
     if (resource.previewUrl) {
       const img = document.createElement("img");
       img.className = "thumb";
-      img.src = resource.previewUrl;
-      img.alt = resource.name;
+      img.src       = resource.previewUrl;
+      img.alt       = resource.name;
       card.appendChild(img);
     }
 
     resourceList.appendChild(card);
   });
 }
+
+// ── File uploads ──────────────────────────────────────────────────────────────
+fileInput.addEventListener("change", async (event) => {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+
+  for (const file of files) {
+    if (file.type.startsWith("image/")) {
+      await addImageResource(file);
+    } else {
+      await addTextResource(file);
+    }
+  }
+
+  fileInput.value = "";
+  renderResources();
+});
+
+loadSampleBtn.addEventListener("click", async () => {
+  if (backendOnline && state.cohortId) {
+    const blob = new Blob([SAMPLE_DOC], { type: "text/plain" });
+    const file = new File([blob], "sample-wedding-plan.txt", { type: "text/plain" });
+    await addTextResource(file);
+  } else {
+    addDocumentFromText("sample-wedding-plan.txt", SAMPLE_DOC);
+    addMessage("system", "System",
+      "Loaded sample doc locally. Ask `@ai what time does the ceremony start?`");
+  }
+});
 
 async function addTextResource(file) {
   if (backendOnline && state.cohortId) {
@@ -283,53 +545,57 @@ async function addTextResource(file) {
 async function addImageResource(file) {
   const previewUrl = await readFileAsDataUrl(file);
   state.resources.unshift({
-    id: crypto.randomUUID(),
-    name: file.name,
-    type: "image",
-    summary: "Image uploaded successfully and available for display in the wedding workspace.",
+    id:         crypto.randomUUID(),
+    name:       file.name,
+    type:       "image",
+    summary:    "Image uploaded successfully and available for display in the wedding workspace.",
     previewUrl
   });
-  addMessage("system", "System", `Uploaded image ${file.name}. You can use it as decor inspiration or venue reference in the demo.`);
+  addMessage("system", "System",
+    `Uploaded image ${file.name}. You can use it as decor inspiration or venue reference in the demo.`);
 }
 
 function addDocumentFromText(name, text) {
   const cleaned = text.trim();
-  if (!cleaned) {
-    return;
-  }
+  if (!cleaned) return;
 
   const chunks = chunkText(cleaned, 360);
   state.resources.unshift({
-    id: crypto.randomUUID(),
+    id:         crypto.randomUUID(),
     name,
-    type: "text",
-    summary: `${chunks.length} retrieval chunk(s) created.`,
+    type:       "text",
+    summary:    `${chunks.length} retrieval chunk(s) created.`,
     previewUrl: null
   });
 
   chunks.forEach((content, index) => {
     state.chunks.push({
-      id: crypto.randomUUID(),
-      source: name,
-      index: index + 1,
+      id:      crypto.randomUUID(),
+      source:  name,
+      index:   index + 1,
       content,
-      vector: vectorize(content)
+      vector:  vectorize(content)
     });
   });
 
   renderResources();
 }
 
+// ── AI Retrieval ──────────────────────────────────────────────────────────────
 function respondToAi(question) {
   if (!question) {
     addMessage("ai", "AI Assistant", "Ask a question after `@ai` so I can search the knowledge base.");
     return;
   }
 
-  retrievalLabel.textContent = "Querying...";
+  retrievalLabel.textContent = "Querying…";
 
   if (backendOnline && state.cohortId) {
-    apiPost("/api/ai-query", { cohort_id: state.cohortId, question, user_id: state.userId })
+    apiPost("/api/ai-query", {
+      cohort_id: state.cohortId,
+      question,
+      user_id:   state.userId
+    })
       .then(data => {
         const sourceNote = data.sources && data.sources.length
           ? `\n\nSources: ${data.sources.join(", ")}`
@@ -347,10 +613,12 @@ function respondToAi(question) {
     return;
   }
 
-  // Local fallback (bag-of-words cosine similarity)
+  // Local bag-of-words fallback
   setTimeout(() => {
     const results = searchKnowledgeBase(question);
-    retrievalLabel.textContent = results.length ? "Retrieval grounded in docs" : "No matching context found";
+    retrievalLabel.textContent = results.length
+      ? "Retrieval grounded in docs"
+      : "No matching context found";
 
     if (!results.length) {
       addMessage("ai", "AI Assistant",
@@ -358,27 +626,21 @@ function respondToAi(question) {
       return;
     }
 
-    const best   = results[0];
-    const support = results[1];
-    addMessage("ai", "AI Assistant", buildAnswer(question, best, support));
+    addMessage("ai", "AI Assistant", buildAnswer(question, results[0], results[1]));
   }, 450);
 }
 
 function searchKnowledgeBase(question) {
   const queryVector = vectorize(question);
-
   return state.chunks
-    .map((chunk) => ({
-      ...chunk,
-      score: cosineSimilarity(queryVector, chunk.vector)
-    }))
-    .filter((chunk) => chunk.score > 0)
+    .map(chunk => ({ ...chunk, score: cosineSimilarity(queryVector, chunk.vector) }))
+    .filter(chunk => chunk.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 }
 
 function buildAnswer(question, best, support) {
-  const lead = best.content.split(/\n+/)[0].trim();
+  const lead    = best.content.split(/\n+/)[0].trim();
   const excerpt = compressWhitespace(best.content).slice(0, 240);
   const supportLine = support
     ? `\nSupporting context: ${compressWhitespace(support.content).slice(0, 140)}`
@@ -388,15 +650,16 @@ function buildAnswer(question, best, support) {
 
 ${lead}
 
-Key retrieved excerpt: "${excerpt}${excerpt.length >= 240 ? "..." : ""}"
+Key retrieved excerpt: "${excerpt}${excerpt.length >= 240 ? "…" : ""}"
 Source: ${best.source} (chunk ${best.index})${supportLine}
 
  `;
 }
 
+// ── NLP ───────────────────────────────────────────────────────────────────────
 function chunkText(text, maxLength) {
   const normalized = text.replace(/\r/g, "");
-  const paragraphs = normalized.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+  const paragraphs = normalized.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
   const chunks = [];
   let current = "";
 
@@ -404,9 +667,7 @@ function chunkText(text, maxLength) {
     if ((current + "\n\n" + paragraph).trim().length <= maxLength) {
       current = current ? `${current}\n\n${paragraph}` : paragraph;
     } else {
-      if (current) {
-        chunks.push(current);
-      }
+      if (current) chunks.push(current);
       if (paragraph.length <= maxLength) {
         current = paragraph;
       } else {
@@ -416,9 +677,7 @@ function chunkText(text, maxLength) {
           if ((current + " " + sentence).trim().length <= maxLength) {
             current = current ? `${current} ${sentence}` : sentence;
           } else {
-            if (current) {
-              chunks.push(current);
-            }
+            if (current) chunks.push(current);
             current = sentence;
           }
         }
@@ -426,21 +685,14 @@ function chunkText(text, maxLength) {
     }
   }
 
-  if (current) {
-    chunks.push(current);
-  }
-
+  if (current) chunks.push(current);
   return chunks;
 }
 
 function vectorize(text) {
-  const terms = tokenize(text);
+  const terms  = tokenize(text);
   const vector = {};
-
-  for (const term of terms) {
-    vector[term] = (vector[term] || 0) + 1;
-  }
-
+  for (const term of terms) vector[term] = (vector[term] || 0) + 1;
   return vector;
 }
 
@@ -449,40 +701,27 @@ function tokenize(text) {
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 1 && !STOP_WORDS.has(token));
+    .map(t => t.trim())
+    .filter(t => t.length > 1 && !STOP_WORDS.has(t));
 }
 
 function cosineSimilarity(a, b) {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  let dot = 0;
-  let magA = 0;
-  let magB = 0;
-
-  keys.forEach((key) => {
-    const aValue = a[key] || 0;
-    const bValue = b[key] || 0;
-    dot += aValue * bValue;
-    magA += aValue * aValue;
-    magB += bValue * bValue;
+  let dot = 0, magA = 0, magB = 0;
+  keys.forEach(key => {
+    const av = a[key] || 0, bv = b[key] || 0;
+    dot  += av * bv;
+    magA += av * av;
+    magB += bv * bv;
   });
-
-  if (!magA || !magB) {
-    return 0;
-  }
-
-  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+  return (!magA || !magB) ? 0 : dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
-function sanitizeName(value) {
-  return value.replace(/\s+/g, " ").trim();
-}
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function sanitizeName(v) { return v.replace(/\s+/g, " ").trim(); }
 
 function formatTime(date) {
-  return new Intl.DateTimeFormat([], {
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
+  return new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }).format(date);
 }
 
 function formatMessage(text) {
@@ -498,14 +737,12 @@ function escapeHtml(text) {
     .replaceAll(">", "&gt;");
 }
 
-function compressWhitespace(text) {
-  return text.replace(/\s+/g, " ").trim();
-}
+function compressWhitespace(text) { return text.replace(/\s+/g, " ").trim(); }
 
 function readFileAsText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onload  = () => resolve(String(reader.result || ""));
     reader.onerror = () => reject(reader.error);
     reader.readAsText(file);
   });
@@ -514,28 +751,24 @@ function readFileAsText(file) {
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onload  = () => resolve(String(reader.result || ""));
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
 }
 
-// ── Backend API helpers ───────────────────────────────────────────────────────
+// ── Backend helpers ───────────────────────────────────────────────────────────
 async function checkBackend() {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/status`, {
-      signal: AbortSignal.timeout(2500)
-    });
+    const res = await fetch(`${BACKEND_URL}/api/status`, { signal: AbortSignal.timeout(2500) });
     if (res.ok) {
       backendOnline = true;
-      if (backendStatus) {
-        backendStatus.textContent = "Backend online";
-        backendStatus.className   = "pill backend-online";
+      if (backendStatusEl) {
+        backendStatusEl.textContent = "Backend online";
+        backendStatusEl.className   = "pill backend-online";
       }
     }
-  } catch {
-    backendOnline = false;
-  }
+  } catch { backendOnline = false; }
 }
 
 async function apiPost(path, body) {
