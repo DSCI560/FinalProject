@@ -3,141 +3,344 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Wed Board – AI Wedding Planner</title>
+  <title>WedBoard – AI Wedding Planner</title>
   <link rel="stylesheet" href="styles.css">
-  <!-- Marked.js for markdown rendering in chat -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand-card">
-        <p class="eyebrow">AI-Powered</p>
-        <h1>Wed Board</h1>
-        <p class="muted">Your wedding ceremony. One shared brain.</p>
-      </div>
 
-      <!-- ── LOGIN / REGISTER PANEL ──────────────────────────── -->
-      <section class="panel" id="auth-panel">
-        <div class="panel-header">
-          <h2 id="auth-title">Sign In</h2>
-        </div>
-
-        <!-- Auth form (shown when logged out) -->
-        <div id="auth-form">
-          <label class="field">
-            <span>Username</span>
-            <input id="auth-username" type="text" placeholder="your name" maxlength="30" autocomplete="username">
-          </label>
-          <label class="field">
-            <span>Password</span>
-            <input id="auth-password" type="password" placeholder="••••••••" maxlength="64" autocomplete="current-password">
-          </label>
-          <p id="auth-error" class="auth-error" aria-live="polite"></p>
-          <div class="auth-buttons">
-            <button id="login-button"    class="button button-primary"   type="button">Sign In</button>
-            <button id="register-button" class="button button-secondary" type="button">Create Account</button>
-          </div>
-          <p class="muted small auth-hint" id="auth-hint">New here? Click <em>Create Account</em>.</p>
-        </div>
-
-        <!-- Logged-in state -->
-        <div id="auth-logged-in" class="hidden">
-          <div class="user-badge">
-            <div class="user-avatar" id="user-avatar-badge"></div>
-            <div>
-              <strong id="logged-in-name"></strong>
-              <p class="muted small" style="margin:2px 0 0">Signed in</p>
-            </div>
-          </div>
-
-          <label class="field" style="margin-top:14px">
-            <span>Wedding Workspace</span>
-            <select id="cohort-select">
-              <option value="Mia & Ethan Wedding">Mia &amp; Ethan Wedding</option>
-              <option value="Ada & Leon Wedding">Ada &amp; Leon Wedding</option>
-              <option value="Jill & Carlos Wedding">Jill &amp; Carlos Wedding</option>
-            </select>
-          </label>
-          <button id="open-chat-button" class="button button-primary" type="button" style="width:100%;margin-top:4px">Open Wedding Chat</button>
-
-          <button id="logout-button" class="button button-ghost" type="button" style="width:100%;margin-top:10px">
-            Sign Out
+  <!-- ═══ VIEW: LANDING ═══ -->
+  <div id="view-landing" class="view">
+    <div class="landing">
+      <div class="landing-glass">
+        <p class="landing-eyebrow">AI-Powered Wedding Coordination</p>
+        <h1 class="landing-logo">WedBoard</h1>
+        <p class="landing-sub">One shared brain for your wedding.</p>
+        <div class="landing-roles">
+          <button class="role-btn" id="role-couple">
+            <span class="role-emoji">&#128141;</span>
+            <strong>Couple</strong>
+            <span class="role-desc">Plan your dream day</span>
+          </button>
+          <button class="role-btn" id="role-vendor">
+            <span class="role-emoji">&#128188;</span>
+            <strong>Vendor</strong>
+            <span class="role-desc">Grow your business</span>
           </button>
         </div>
-      </section>
-
-      <!-- ── KNOWLEDGE BASE ─────────────────────────────────── -->
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Knowledge Base</h2>
-          <span id="doc-count" class="pill">0 docs</span>
-        </div>
-        <p class="muted small">
-          Upload planning notes, vendor details, schedules, contracts, or inspiration images.
-        </p>
-        <div class="upload-row">
-          <label class="button button-secondary file-button" for="file-input">Upload Files</label>
-          <button id="load-sample" class="button button-secondary" type="button">Load Sample Doc</button>
-          <input id="file-input" type="file" multiple accept=".txt,.md,.json,image/*">
-        </div>
-        <div id="knowledge-status" class="status-box">No wedding documents uploaded yet.</div>
-        <div id="resource-list" class="resource-list"></div>
-      </section>
-
-      <!-- ── BACKEND STACK ──────────────────────────────────── -->
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Backend Stack</h2>
-        </div>
-        <ol class="steps">
-          <li><strong>Flask</strong> serves this page &amp; all API routes.</li>
-          <li><strong>SQLite</strong> stores users, cohorts, messages, docs.</li>
-          <li><strong>ChromaDB</strong> stores OpenAI vector embeddings.</li>
-          <li>Upload a doc — chunks are embedded &amp; persisted.</li>
-          <li>Ask <code>@ai</code> — GPT answers grounded in your docs.</li>
-          <li><code>@ai generate doc</code> — creates a .docx from chat &amp; docs.</li>
-        </ol>
-      </section>
-    </aside>
-
-    <main class="main-panel">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow" id="topbar-user-label"> </p>
-          <h2 id="chat-title">Wed Board</h2>
-        </div>
-        <div class="topbar-status">
-          <span id="backend-status" class="pill backend-offline">Backend offline</span>
-        </div>
-      </header>
-
-      <section id="chat-feed" class="chat-feed" aria-live="polite"></section>
-
-      <section class="composer">
-        <div class="composer-tips">
-          <span>Tip: <code>@ai</code> to ask questions · <code>@ai generate doc</code> to create a document</span>
-          <span id="retrieval-label">Retrieval idle</span>
-        </div>
-        <div class="composer-row">
-          <textarea id="message-input" rows="3" placeholder="Sign in to start messaging…" disabled></textarea>
-          <button id="send-button" class="button button-primary" type="button" disabled>Send</button>
-        </div>
-      </section>
-    </main>
+        <p class="landing-link">Already have an account? <a href="#" id="go-signin">Sign in</a></p>
+      </div>
+    </div>
   </div>
 
-  <template id="message-template">
-    <article class="message">
-      <div class="message-avatar"></div>
-      <div class="message-body">
-        <div class="message-meta">
-          <strong class="message-author"></strong>
-          <span class="message-time"></span>
-        </div>
-        <div class="message-text"></div>
+  <!-- ═══ VIEW: SIGN IN ═══ -->
+  <div id="view-signin" class="view hidden">
+    <div class="auth-page">
+      <div class="auth-glass">
+        <button class="icon-back" id="signin-back">&larr;</button>
+        <h1 class="auth-logo">WedBoard</h1>
+        <p class="auth-sub">Sign in to continue</p>
+        <form id="signin-form" onsubmit="return false">
+          <label class="f"><span>Username</span><input id="si-user" type="text" placeholder="your name" maxlength="30"></label>
+          <label class="f"><span>Password</span><input id="si-pass" type="password" placeholder="••••••••" maxlength="64"></label>
+          <p id="si-err" class="err"></p>
+          <button class="btn btn-primary w100" type="submit">Sign In</button>
+        </form>
+        <p class="auth-link">No account? <a href="#" id="go-register">Create one</a></p>
       </div>
-    </article>
+    </div>
+  </div>
+
+  <!-- ═══ VIEW: REGISTER COUPLE ═══ -->
+  <div id="view-reg-couple" class="view hidden">
+    <div class="auth-page">
+      <div class="auth-glass auth-wide">
+        <button class="icon-back" id="rc-back">&larr;</button>
+        <h1 class="auth-logo">Create Couple Account</h1>
+        <div class="steps" id="rc-steps"><span class="dot on">1</span><span class="line"></span><span class="dot">2</span></div>
+        <form id="rc-form" onsubmit="return false">
+          <div id="rc-s1">
+            <div class="row"><label class="f"><span>Partner 1</span><input id="rc-n1" type="text" placeholder="e.g. Riya"></label><label class="f"><span>Partner 2</span><input id="rc-n2" type="text" placeholder="e.g. Bhargav"></label></div>
+            <label class="f"><span>Username</span><input id="rc-user" type="text" placeholder="Choose a username" maxlength="30"></label>
+            <label class="f"><span>Password</span><input id="rc-pass" type="password" placeholder="Min 4 characters" maxlength="64"></label>
+            <button class="btn btn-primary w100" type="button" id="rc-next">Next</button>
+          </div>
+          <div id="rc-s2" class="hidden">
+            <div class="row"><label class="f"><span>Wedding Date</span><input id="rc-date" type="date"></label><label class="f"><span>Venue</span><input id="rc-venue" type="text" placeholder="e.g. Rosewood Estate"></label></div>
+            <div class="row"><label class="f"><span>Guest Count</span><input id="rc-guests" type="number" placeholder="120" min="1"></label><label class="f"><span>Style</span><select id="rc-style"><option value="">Select...</option><option>Modern Minimalist</option><option>Rustic Boho</option><option>Classic Elegant</option><option>Garden Romantic</option><option>Beach Tropical</option><option>Vintage Glam</option></select></label></div>
+            <p id="rc-err" class="err"></p>
+            <div class="row"><button class="btn btn-ghost" type="button" id="rc-prev">Back</button><button class="btn btn-primary" type="submit">Create Account</button></div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ VIEW: REGISTER VENDOR ═══ -->
+  <div id="view-reg-vendor" class="view hidden">
+    <div class="auth-page">
+      <div class="auth-glass auth-wide">
+        <button class="icon-back" id="rv-back">&larr;</button>
+        <h1 class="auth-logo">Join as Vendor</h1>
+        <div class="steps" id="rv-steps"><span class="dot on">1</span><span class="line"></span><span class="dot">2</span><span class="line"></span><span class="dot">3</span></div>
+        <form id="rv-form" onsubmit="return false">
+          <div id="rv-s1">
+            <label class="f"><span>Username</span><input id="rv-user" type="text" placeholder="Choose a username" maxlength="30"></label>
+            <label class="f"><span>Password</span><input id="rv-pass" type="password" placeholder="Min 4 characters" maxlength="64"></label>
+            <label class="f"><span>Business Name</span><input id="rv-biz" type="text" placeholder="e.g. Golden Hour Studio" maxlength="60"></label>
+            <label class="f"><span>Category</span><select id="rv-cat"><option value="">Select...</option><option value="photographer">Photographer</option><option value="videographer">Videographer</option><option value="florist">Florist</option><option value="caterer">Caterer</option><option value="dj-music">DJ / Music</option><option value="planner">Wedding Planner</option><option value="venue">Venue</option><option value="bakery">Bakery / Cake</option><option value="makeup-hair">Makeup & Hair</option><option value="decor-rentals">Decor & Rentals</option><option value="officiant">Officiant</option></select></label>
+            <button class="btn btn-primary w100" type="button" id="rv-next1">Next</button>
+          </div>
+          <div id="rv-s2" class="hidden">
+            <p class="muted sm">Add your packages. You can add more later.</p>
+            <div id="rv-products"><div class="pkg-card"><div class="row"><label class="f"><span>Package Name</span><input type="text" class="pkg-name" placeholder="e.g. Full Day Coverage"></label><label class="f"><span>Price ($)</span><input type="number" class="pkg-price" placeholder="3500" min="0"></label></div><label class="f"><span>Description</span><textarea class="pkg-desc" rows="2" placeholder="Describe this package..."></textarea></label></div></div>
+            <button class="btn btn-ghost sm-btn" type="button" id="rv-add-pkg">+ Add Package</button>
+            <label class="f" style="margin-top:12px"><span>Portfolio Photos</span><input id="rv-photos" type="file" multiple accept="image/*" class="file-vis"></label>
+            <div id="rv-photo-grid" class="photo-grid"></div>
+            <div class="row" style="margin-top:14px"><button class="btn btn-ghost" type="button" id="rv-prev2">Back</button><button class="btn btn-primary" type="button" id="rv-next2">Next</button></div>
+          </div>
+          <div id="rv-s3" class="hidden">
+            <label class="f"><span>Business Address</span><input id="rv-addr" type="text" placeholder="123 Main St, City, State"></label>
+            <div class="row"><label class="f"><span>City</span><input id="rv-city" type="text" placeholder="San Francisco"></label><label class="f"><span>Service Radius (mi)</span><input id="rv-radius" type="number" placeholder="50"></label></div>
+            <div class="row"><label class="f"><span>Phone</span><input id="rv-phone" type="tel" placeholder="(555) 123-4567"></label><label class="f"><span>Website</span><input id="rv-web" type="url" placeholder="https://..."></label></div>
+            <label class="f"><span>About Your Business</span><textarea id="rv-about" rows="3" placeholder="What makes you special..."></textarea></label>
+            <p id="rv-err" class="err"></p>
+            <div class="row"><button class="btn btn-ghost" type="button" id="rv-prev3">Back</button><button class="btn btn-primary" type="submit">Create Account</button></div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ VIEW: COUPLE DASHBOARD ═══ -->
+  <div id="view-couple" class="view hidden">
+    <div class="messenger">
+      <!-- Sidebar -->
+      <aside class="m-sidebar">
+        <div class="m-sidebar-head">
+          <h1 class="m-logo">W</h1>
+          <div class="m-sidebar-actions">
+            <button class="icon-btn" id="c-settings-btn" title="Settings">&#9881;</button>
+          </div>
+          <!-- Settings dropdown -->
+          <div class="dropdown hidden" id="c-settings-menu">
+            <div class="dropdown-header">
+              <div class="dropdown-avatar" id="c-dd-avatar"></div>
+              <div><strong id="c-dd-name"></strong><p class="muted sm">Couple Account</p></div>
+            </div>
+            <div class="dropdown-sep"></div>
+            <button class="dropdown-item" id="c-manage-vendors">Manage Vendors</button>
+            <button class="dropdown-item" id="c-write-review">Write a Review</button>
+            <button class="dropdown-item" id="c-kb-btn">Knowledge Base</button>
+            <div class="dropdown-sep"></div>
+            <button class="dropdown-item danger" id="c-logout">Sign Out</button>
+          </div>
+        </div>
+
+        <!-- Wedding label -->
+        <div class="m-wedding-label">
+          <p class="tiny-label">YOUR WEDDING</p>
+          <strong id="c-wedding-name"></strong>
+        </div>
+
+        <!-- Vendor list -->
+        <p class="sidebar-section-title">Vendors</p>
+        <div class="m-chat-list" id="c-vendor-list">
+          <button class="m-chat-item c-vendor-btn active" data-vendor="Golden Hour Studio" data-cat="Photographer">
+            <div class="m-avatar peach">G</div>
+            <div class="m-chat-info"><strong>Golden Hour Studio</strong><span>Photographer</span></div>
+          </button>
+          <button class="m-chat-item c-vendor-btn" data-vendor="Petal & Vine" data-cat="Florist">
+            <div class="m-avatar mint">P</div>
+            <div class="m-chat-info"><strong>Petal &amp; Vine</strong><span>Florist</span></div>
+          </button>
+          <button class="m-chat-item c-vendor-btn" data-vendor="Blue Note Events" data-cat="DJ / Music">
+            <div class="m-avatar sky">B</div>
+            <div class="m-chat-info"><strong>Blue Note Events</strong><span>DJ / Music</span></div>
+          </button>
+          <button class="m-chat-item c-vendor-btn" data-vendor="Hearth Table" data-cat="Caterer">
+            <div class="m-avatar lavender">H</div>
+            <div class="m-chat-info"><strong>Hearth Table</strong><span>Caterer</span></div>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main chat -->
+      <main class="m-main">
+        <header class="m-topbar">
+          <div class="m-topbar-info">
+            <div class="m-avatar-sm peach" id="c-topbar-avatar">G</div>
+            <div><strong id="c-chat-title">Golden Hour Studio</strong><span class="muted sm" id="c-chat-subtitle">Photographer</span></div>
+          </div>
+          <div class="m-topbar-actions">
+            <span class="retrieval-pill" id="c-retrieval">Retrieval idle</span>
+          </div>
+        </header>
+        <section id="c-chat-feed" class="m-feed" aria-live="polite"></section>
+        <section class="m-composer">
+          <div class="m-composer-hint"><span>Tip: <code>@ai</code> ask questions &middot; <code>@ai generate doc</code> create documents</span></div>
+          <div class="m-composer-row">
+            <textarea id="c-input" rows="1" placeholder="Type a message..." disabled></textarea>
+            <button id="c-send" class="btn btn-send" disabled>&#10148;</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Slide-over panels -->
+    <div class="slideoverlay hidden" id="c-overlay"></div>
+
+    <!-- Knowledge Base panel -->
+    <div class="slideover hidden" id="c-kb-panel">
+      <div class="slideover-head"><h2>Knowledge Base</h2><button class="icon-close" id="c-kb-close">&times;</button></div>
+      <div class="slideover-body">
+        <p class="muted sm">Upload contracts, schedules, or notes. The AI uses these to answer questions.</p>
+        <div class="upload-area">
+          <label class="btn btn-ghost w100 file-label" for="c-file-input">Upload Files</label>
+          <button id="c-load-sample" class="btn btn-ghost w100">Load Sample Doc</button>
+          <input id="c-file-input" type="file" multiple accept=".txt,.md,.json,image/*" style="display:none">
+        </div>
+        <div class="kb-status" id="c-kb-status">No documents uploaded yet.</div>
+        <span class="pill" id="c-doc-count" style="margin-top:8px">0 docs</span>
+        <div id="c-resource-list" class="resource-list"></div>
+      </div>
+    </div>
+
+    <!-- Manage Vendors panel -->
+    <div class="slideover hidden" id="c-manage-panel">
+      <div class="slideover-head"><h2>Manage Vendors</h2><button class="icon-close" id="c-manage-close">&times;</button></div>
+      <div class="slideover-body">
+        <p class="muted sm">Manage your vendor relationships.</p>
+        <div id="c-vendor-manage-list"></div>
+      </div>
+    </div>
+
+    <!-- Review panel -->
+    <div class="slideover hidden" id="c-review-panel">
+      <div class="slideover-head"><h2>Write a Review</h2><button class="icon-close" id="c-review-close">&times;</button></div>
+      <div class="slideover-body">
+        <label class="f"><span>Vendor</span><select id="rv-select"><option value="">Choose vendor...</option><option value="golden-hour-studio">Golden Hour Studio</option><option value="petal-vine">Petal &amp; Vine</option><option value="blue-note-events">Blue Note Events</option><option value="hearth-table">Hearth Table</option></select></label>
+        <label class="f"><span>Rating</span><div class="stars" id="rv-stars"><span class="star" data-v="1">&#9733;</span><span class="star" data-v="2">&#9733;</span><span class="star" data-v="3">&#9733;</span><span class="star" data-v="4">&#9733;</span><span class="star" data-v="5">&#9733;</span></div></label>
+        <label class="f"><span>Review</span><textarea id="rv-text" rows="3" placeholder="Share your experience..."></textarea></label>
+        <button id="rv-submit" class="btn btn-primary w100">Submit Review</button>
+        <div id="c-reviews-list" class="reviews-list" style="margin-top:16px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ VIEW: VENDOR DASHBOARD ═══ -->
+  <div id="view-vendor" class="view hidden">
+    <div class="messenger">
+      <aside class="m-sidebar">
+        <div class="m-sidebar-head">
+          <h1 class="m-logo">W</h1>
+          <div class="m-sidebar-actions">
+            <button class="icon-btn" id="v-settings-btn" title="Settings">&#9881;</button>
+          </div>
+          <div class="dropdown hidden" id="v-settings-menu">
+            <div class="dropdown-header">
+              <div class="dropdown-avatar vendor-av" id="v-dd-avatar"></div>
+              <div><strong id="v-dd-name"></strong><p class="muted sm" id="v-dd-cat">Vendor</p></div>
+            </div>
+            <div class="dropdown-sep"></div>
+            <button class="dropdown-item" id="v-analytics-btn">Business Analytics</button>
+            <button class="dropdown-item" id="v-reviews-btn">My Reviews</button>
+            <button class="dropdown-item" id="v-manage-couples-btn">Manage Couples</button>
+            <div class="dropdown-sep"></div>
+            <button class="dropdown-item danger" id="v-logout">Sign Out</button>
+          </div>
+        </div>
+
+        <p class="sidebar-section-title">Couple Chats</p>
+        <div class="m-chat-list" id="v-chat-list">
+          <button class="m-chat-item v-couple-btn active" data-cohort="Mia & Ethan Wedding">
+            <div class="m-avatar blush">M</div>
+            <div class="m-chat-info"><strong>Mia &amp; Ethan</strong><span>June 21</span></div>
+          </button>
+          <button class="m-chat-item v-couple-btn" data-cohort="Ada & Leon Wedding">
+            <div class="m-avatar lavender">A</div>
+            <div class="m-chat-info"><strong>Ada &amp; Leon</strong><span>Aug 15</span></div>
+          </button>
+          <button class="m-chat-item v-couple-btn" data-cohort="Jill & Carlos Wedding">
+            <div class="m-avatar mint">J</div>
+            <div class="m-chat-info"><strong>Jill &amp; Carlos</strong><span>Oct 3</span></div>
+          </button>
+        </div>
+      </aside>
+
+      <main class="m-main">
+        <header class="m-topbar">
+          <div class="m-topbar-info">
+            <div class="m-avatar-sm blush">M</div>
+            <div><strong id="v-chat-title">Mia &amp; Ethan Wedding</strong><span class="muted sm">Active chat</span></div>
+          </div>
+          <div class="m-topbar-actions">
+            <span class="retrieval-pill" id="v-retrieval">Retrieval idle</span>
+          </div>
+        </header>
+        <section id="v-chat-feed" class="m-feed" aria-live="polite"></section>
+        <section class="m-composer">
+          <div class="m-composer-hint"><span>Tip: <code>@ai</code> ask questions &middot; <code>@ai generate doc</code> create documents</span></div>
+          <div class="m-composer-row">
+            <textarea id="v-input" rows="1" placeholder="Type a message..." disabled></textarea>
+            <button id="v-send" class="btn btn-send" disabled>&#10148;</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Vendor slide-overs -->
+    <div class="slideoverlay hidden" id="v-overlay"></div>
+
+    <div class="slideover hidden" id="v-analytics-panel">
+      <div class="slideover-head"><h2>Analytics</h2><button class="icon-close" id="v-analytics-close">&times;</button></div>
+      <div class="slideover-body">
+        <div class="stat-grid">
+          <div class="stat-card"><p class="stat-num">12</p><p class="stat-label">Bookings</p></div>
+          <div class="stat-card"><p class="stat-num">$42K</p><p class="stat-label">Revenue YTD</p></div>
+          <div class="stat-card"><p class="stat-num">4.8</p><p class="stat-label">Avg Rating</p></div>
+          <div class="stat-card"><p class="stat-num">28</p><p class="stat-label">Inquiries</p></div>
+        </div>
+        <h3 style="margin-top:16px">Monthly Bookings</h3>
+        <div class="mini-chart"><div class="bar" style="height:30%"><span>Jan</span></div><div class="bar" style="height:45%"><span>Feb</span></div><div class="bar" style="height:60%"><span>Mar</span></div><div class="bar" style="height:80%"><span>Apr</span></div><div class="bar" style="height:95%"><span>May</span></div><div class="bar hl" style="height:100%"><span>Jun</span></div><div class="bar" style="height:70%"><span>Jul</span></div><div class="bar" style="height:50%"><span>Aug</span></div></div>
+        <h3 style="margin-top:16px">Top Packages</h3>
+        <div class="pkg-bar-row"><span>Full Day</span><div class="pkg-bar"><div class="pkg-fill" style="width:85%"></div></div><span class="muted sm">85%</span></div>
+        <div class="pkg-bar-row"><span>Half Day</span><div class="pkg-bar"><div class="pkg-fill" style="width:60%"></div></div><span class="muted sm">60%</span></div>
+        <div class="pkg-bar-row"><span>Engagement</span><div class="pkg-bar"><div class="pkg-fill" style="width:40%"></div></div><span class="muted sm">40%</span></div>
+      </div>
+    </div>
+
+    <div class="slideover hidden" id="v-reviews-panel">
+      <div class="slideover-head"><h2>Reviews</h2><button class="icon-close" id="v-reviews-close">&times;</button></div>
+      <div class="slideover-body">
+        <div class="review-source"><span class="g-icon">G</span><strong>Google Reviews</strong></div>
+        <div class="review-card"><div class="review-top"><span class="star-display">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span class="muted sm">2w ago</span></div><p class="review-author">Sarah M.</p><p class="review-body">Absolutely stunning photos! Captured every magical moment.</p></div>
+        <div class="review-card"><div class="review-top"><span class="star-display">&#9733;&#9733;&#9733;&#9733;&#9734;</span><span class="muted sm">1mo ago</span></div><p class="review-author">James & Lily K.</p><p class="review-body">Very professional and easy to work with. Beautiful results.</p></div>
+        <div class="review-source" style="margin-top:14px"><span class="g-icon wb">W</span><strong>WedBoard Reviews</strong></div>
+        <div id="v-wb-reviews"></div>
+      </div>
+    </div>
+
+    <div class="slideover hidden" id="v-manage-panel">
+      <div class="slideover-head"><h2>Manage Couples</h2><button class="icon-close" id="v-manage-close">&times;</button></div>
+      <div class="slideover-body">
+        <p class="muted sm">Manage your couple relationships.</p>
+        <div class="manage-item"><div class="m-avatar-sm blush">M</div><div><strong>Mia &amp; Ethan</strong><span class="muted sm">June 21</span></div><button class="btn btn-ghost btn-tiny danger">Blacklist</button></div>
+        <div class="manage-item"><div class="m-avatar-sm lavender">A</div><div><strong>Ada &amp; Leon</strong><span class="muted sm">Aug 15</span></div><button class="btn btn-ghost btn-tiny danger">Blacklist</button></div>
+        <div class="manage-item"><div class="m-avatar-sm mint">J</div><div><strong>Jill &amp; Carlos</strong><span class="muted sm">Oct 3</span></div><button class="btn btn-ghost btn-tiny danger">Blacklist</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TUTORIAL ═══ -->
+  <div id="tutorial-overlay" class="tutorial-overlay hidden">
+    <div class="tutorial-bg"></div>
+    <div class="tutorial-tip" id="tutorial-tip"><p id="tut-text"></p><div class="tutorial-foot"><span id="tut-counter" class="muted sm"></span><button id="tut-next" class="btn btn-primary btn-sm">Next</button></div></div>
+    <div class="tutorial-hl" id="tutorial-hl"></div>
+  </div>
+
+  <template id="msg-tpl">
+    <article class="msg"><div class="msg-av"></div><div class="msg-body"><div class="msg-meta"><strong class="msg-author"></strong><span class="msg-time"></span></div><div class="msg-text"></div></div></article>
   </template>
 
   <script src="app.js"></script>
