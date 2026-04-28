@@ -6,6 +6,7 @@
   <title>WedBoard – AI Wedding Planner</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 
@@ -14,16 +15,16 @@
     <div class="landing">
       <div class="landing-glass">
         <p class="landing-eyebrow">AI-Powered Wedding Coordination</p>
-        <h1 class="landing-logo">WedBoard</h1>
+        <h1 class="landing-logo"><i data-lucide="heart" class="landing-icon"></i> WedBoard</h1>
         <p class="landing-sub">One shared brain for your wedding.</p>
         <div class="landing-roles">
           <button class="role-btn" id="role-couple">
-            <span class="role-emoji">&#128141;</span>
+            <i data-lucide="heart-handshake" class="role-icon"></i>
             <strong>Couple</strong>
             <span class="role-desc">Plan your dream day</span>
           </button>
           <button class="role-btn" id="role-vendor">
-            <span class="role-emoji">&#128188;</span>
+            <i data-lucide="briefcase" class="role-icon"></i>
             <strong>Vendor</strong>
             <span class="role-desc">Grow your business</span>
           </button>
@@ -37,7 +38,7 @@
   <div id="view-signin" class="view hidden">
     <div class="auth-page">
       <div class="auth-glass">
-        <button class="icon-back" id="signin-back">&larr;</button>
+        <button class="icon-back" id="signin-back"><i data-lucide="arrow-left"></i></button>
         <h1 class="auth-logo">WedBoard</h1>
         <p class="auth-sub">Sign in to continue</p>
         <form id="signin-form" onsubmit="return false">
@@ -55,7 +56,7 @@
   <div id="view-reg-couple" class="view hidden">
     <div class="auth-page">
       <div class="auth-glass auth-wide">
-        <button class="icon-back" id="rc-back">&larr;</button>
+        <button class="icon-back" id="rc-back"><i data-lucide="arrow-left"></i></button>
         <h1 class="auth-logo">Create Couple Account</h1>
         <div class="steps" id="rc-steps"><span class="dot on">1</span><span class="line"></span><span class="dot">2</span></div>
         <form id="rc-form" onsubmit="return false">
@@ -80,7 +81,7 @@
   <div id="view-reg-vendor" class="view hidden">
     <div class="auth-page">
       <div class="auth-glass auth-wide">
-        <button class="icon-back" id="rv-back">&larr;</button>
+        <button class="icon-back" id="rv-back"><i data-lucide="arrow-left"></i></button>
         <h1 class="auth-logo">Join as Vendor</h1>
         <div class="steps" id="rv-steps"><span class="dot on">1</span><span class="line"></span><span class="dot">2</span><span class="line"></span><span class="dot">3</span></div>
         <form id="rv-form" onsubmit="return false">
@@ -88,7 +89,7 @@
             <label class="f"><span>Username</span><input id="rv-user" type="text" placeholder="Choose a username" maxlength="30"></label>
             <label class="f"><span>Password</span><input id="rv-pass" type="password" placeholder="Min 4 characters" maxlength="64"></label>
             <label class="f"><span>Business Name</span><input id="rv-biz" type="text" placeholder="e.g. Golden Hour Studio" maxlength="60"></label>
-            <label class="f"><span>Category</span><select id="rv-cat"><option value="">Select...</option><option value="photographer">Photographer</option><option value="videographer">Videographer</option><option value="florist">Florist</option><option value="caterer">Caterer</option><option value="dj-music">DJ / Music</option><option value="planner">Wedding Planner</option><option value="venue">Venue</option><option value="bakery">Bakery / Cake</option><option value="makeup-hair">Makeup & Hair</option><option value="decor-rentals">Decor & Rentals</option><option value="officiant">Officiant</option></select></label>
+            <label class="f"><span>Category</span><select id="rv-cat"><option value="">Select...</option><option value="photographer">Photographer</option><option value="videographer">Videographer</option><option value="florist">Florist</option><option value="caterer">Caterer</option><option value="dj-music">DJ / Music</option><option value="planner">Wedding Planner</option><option value="venue">Venue</option><option value="bakery">Bakery / Cake</option><option value="makeup-hair">Makeup &amp; Hair</option><option value="decor-rentals">Decor &amp; Rentals</option><option value="officiant">Officiant</option></select></label>
             <button class="btn btn-primary w100" type="button" id="rv-next1">Next</button>
           </div>
           <div id="rv-s2" class="hidden">
@@ -118,9 +119,13 @@
       <!-- Sidebar -->
       <aside class="m-sidebar">
         <div class="m-sidebar-head">
-          <h1 class="m-logo">W</h1>
+          <h1 class="m-logo">WedBoard</h1>
           <div class="m-sidebar-actions">
-            <button class="icon-btn" id="c-settings-btn" title="Settings">&#9881;</button>
+            <button class="icon-btn notif-btn" id="c-notif-btn" title="Notifications">
+              <i data-lucide="bell"></i>
+              <span class="notif-badge hidden" id="c-notif-badge">0</span>
+            </button>
+            <button class="icon-btn" id="c-settings-btn" title="Settings"><i data-lucide="settings"></i></button>
           </div>
           <!-- Settings dropdown -->
           <div class="dropdown hidden" id="c-settings-menu">
@@ -129,11 +134,20 @@
               <div><strong id="c-dd-name"></strong><p class="muted sm">Couple Account</p></div>
             </div>
             <div class="dropdown-sep"></div>
-            <button class="dropdown-item" id="c-manage-vendors">Manage Vendors</button>
-            <button class="dropdown-item" id="c-write-review">Write a Review</button>
-            <button class="dropdown-item" id="c-kb-btn">Knowledge Base</button>
+            <button class="dropdown-item" id="c-manage-vendors"><i data-lucide="users" class="dd-icon"></i> Manage Vendors</button>
+            <button class="dropdown-item" id="c-write-review"><i data-lucide="star" class="dd-icon"></i> Write a Review</button>
+            <button class="dropdown-item" id="c-kb-btn"><i data-lucide="database" class="dd-icon"></i> Knowledge Base</button>
             <div class="dropdown-sep"></div>
-            <button class="dropdown-item danger" id="c-logout">Sign Out</button>
+            <button class="dropdown-item danger" id="c-logout"><i data-lucide="log-out" class="dd-icon"></i> Sign Out</button>
+          </div>
+          <!-- Notifications dropdown -->
+          <div class="dropdown notif-dropdown hidden" id="c-notif-menu">
+            <div class="dropdown-header">
+              <strong>Notifications</strong>
+              <button class="btn btn-ghost btn-tiny" id="c-notif-read-all">Mark all read</button>
+            </div>
+            <div class="dropdown-sep"></div>
+            <div id="c-notif-list" class="notif-list"><p class="muted sm" style="padding:10px">No notifications yet.</p></div>
           </div>
         </div>
 
@@ -143,47 +157,383 @@
           <strong id="c-wedding-name"></strong>
         </div>
 
-        <!-- Vendor list -->
-        <p class="sidebar-section-title">Vendors</p>
-        <div class="m-chat-list" id="c-vendor-list">
-          <button class="m-chat-item c-vendor-btn active" data-vendor="Golden Hour Studio" data-cat="Photographer">
-            <div class="m-avatar peach">G</div>
-            <div class="m-chat-info"><strong>Golden Hour Studio</strong><span>Photographer</span></div>
+        <!-- Navigation tabs -->
+        <div class="nav-tabs" id="c-nav-tabs">
+          <button class="nav-tab active" data-tab="chat" title="Chat">
+            <i data-lucide="message-circle"></i>
+            <span>Chat</span>
           </button>
-          <button class="m-chat-item c-vendor-btn" data-vendor="Petal & Vine" data-cat="Florist">
-            <div class="m-avatar mint">P</div>
-            <div class="m-chat-info"><strong>Petal &amp; Vine</strong><span>Florist</span></div>
+          <button class="nav-tab" data-tab="budget" title="Budget">
+            <i data-lucide="wallet"></i>
+            <span>Budget</span>
           </button>
-          <button class="m-chat-item c-vendor-btn" data-vendor="Blue Note Events" data-cat="DJ / Music">
-            <div class="m-avatar sky">B</div>
-            <div class="m-chat-info"><strong>Blue Note Events</strong><span>DJ / Music</span></div>
+          <button class="nav-tab" data-tab="tasks" title="Tasks">
+            <i data-lucide="check-circle"></i>
+            <span>Tasks</span>
           </button>
-          <button class="m-chat-item c-vendor-btn" data-vendor="Hearth Table" data-cat="Caterer">
-            <div class="m-avatar lavender">H</div>
-            <div class="m-chat-info"><strong>Hearth Table</strong><span>Caterer</span></div>
+          <button class="nav-tab" data-tab="guests" title="Guests">
+            <i data-lucide="users"></i>
+            <span>Guests</span>
           </button>
+          <button class="nav-tab" data-tab="discover" title="Discover">
+            <i data-lucide="compass"></i>
+            <span>Discover</span>
+          </button>
+        </div>
+
+        <!-- Tab: Chat — Vendor list -->
+        <div class="tab-content active" id="c-tab-chat">
+          <div class="sidebar-section-header">
+            <p class="sidebar-section-title">Conversations</p>
+            <button class="icon-btn-sm" id="c-new-chat-btn" title="New Chat"><i data-lucide="plus"></i></button>
+          </div>
+          <!-- Private AI Chat button -->
+          <button class="m-chat-item ai-private-chat" id="c-private-ai-btn">
+            <div class="m-avatar ai-avatar"><i data-lucide="shield" style="width:18px;height:18px;color:#fff"></i></div>
+            <div class="m-chat-info"><strong>Private AI Assistant</strong><span>Sensitive &amp; confidential</span></div>
+            <span class="private-badge">Private</span>
+          </button>
+          <p class="sidebar-section-title" style="margin-top:4px">Vendors</p>
+          <div class="m-chat-list" id="c-vendor-list">
+            <button class="m-chat-item c-vendor-btn active" data-vendor="Golden Hour Studio" data-cat="Photographer">
+              <div class="m-avatar peach">G</div>
+              <div class="m-chat-info"><strong>Golden Hour Studio</strong><span>Photographer</span></div>
+            </button>
+            <button class="m-chat-item c-vendor-btn" data-vendor="Petal &amp; Vine" data-cat="Florist">
+              <div class="m-avatar mint">P</div>
+              <div class="m-chat-info"><strong>Petal &amp; Vine</strong><span>Florist</span></div>
+            </button>
+            <button class="m-chat-item c-vendor-btn" data-vendor="Blue Note Events" data-cat="DJ / Music">
+              <div class="m-avatar sky">B</div>
+              <div class="m-chat-info"><strong>Blue Note Events</strong><span>DJ / Music</span></div>
+            </button>
+            <button class="m-chat-item c-vendor-btn" data-vendor="Hearth Table" data-cat="Caterer">
+              <div class="m-avatar lavender">H</div>
+              <div class="m-chat-info"><strong>Hearth Table</strong><span>Caterer</span></div>
+            </button>
+          </div>
+          <p class="sidebar-section-title" id="c-group-chats-title" style="display:none">Group Chats</p>
+          <div class="m-chat-list" id="c-group-chat-list"></div>
+        </div>
+
+        <!-- Tab: Budget — Summary -->
+        <div class="tab-content" id="c-tab-budget">
+          <div class="sidebar-summary">
+            <div class="summary-card budget-summary-card">
+              <p class="summary-big" id="c-budget-remaining">$0</p>
+              <p class="summary-label">Remaining</p>
+              <div class="summary-bar"><div class="summary-bar-fill" id="c-budget-bar" style="width:0%"></div></div>
+              <p class="summary-sub"><span id="c-budget-spent">$0</span> of <span id="c-budget-total">$0</span> spent</p>
+            </div>
+          </div>
+          <p class="sidebar-section-title">Categories</p>
+          <div class="sidebar-list" id="c-budget-cat-list"></div>
+        </div>
+
+        <!-- Tab: Tasks — Summary -->
+        <div class="tab-content" id="c-tab-tasks">
+          <div class="sidebar-summary">
+            <div class="summary-card tasks-summary-card">
+              <div class="task-progress-ring">
+                <svg viewBox="0 0 36 36" class="progress-ring-svg">
+                  <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                  <path class="ring-fill" id="c-task-ring" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                </svg>
+                <span class="ring-text" id="c-task-pct">0%</span>
+              </div>
+              <div>
+                <p class="summary-sub"><span id="c-tasks-done">0</span> of <span id="c-tasks-total">0</span> done</p>
+                <p class="summary-sub warn" id="c-tasks-overdue-label" style="display:none"><span id="c-tasks-overdue">0</span> overdue</p>
+              </div>
+            </div>
+          </div>
+          <p class="sidebar-section-title">Task List</p>
+          <div class="sidebar-list" id="c-task-sidebar-list"></div>
+        </div>
+
+        <!-- Tab: Guests — Summary -->
+        <div class="tab-content" id="c-tab-guests">
+          <div class="sidebar-summary">
+            <div class="summary-card guests-summary-card">
+              <div class="guest-stats">
+                <div class="guest-stat"><span class="guest-stat-num" id="c-guests-attending">0</span><span class="guest-stat-label">Attending</span></div>
+                <div class="guest-stat"><span class="guest-stat-num" id="c-guests-pending">0</span><span class="guest-stat-label">Pending</span></div>
+                <div class="guest-stat"><span class="guest-stat-num" id="c-guests-declined">0</span><span class="guest-stat-label">Declined</span></div>
+              </div>
+              <p class="summary-sub"><span id="c-guests-total">0</span> guests total</p>
+            </div>
+          </div>
+          <p class="sidebar-section-title">Guest List</p>
+          <div class="sidebar-list" id="c-guest-sidebar-list"></div>
+        </div>
+
+        <!-- Tab: Discover — Marketplace -->
+        <div class="tab-content" id="c-tab-discover">
+          <div class="discover-search">
+            <input type="text" id="c-mp-search" placeholder="Search vendors..." class="discover-input">
+            <select id="c-mp-cat-filter" class="discover-select">
+              <option value="">All Categories</option>
+              <option value="photographer">Photographer</option>
+              <option value="videographer">Videographer</option>
+              <option value="florist">Florist</option>
+              <option value="caterer">Caterer</option>
+              <option value="dj-music">DJ / Music</option>
+              <option value="planner">Planner</option>
+              <option value="venue">Venue</option>
+              <option value="bakery">Bakery</option>
+              <option value="makeup-hair">Beauty</option>
+              <option value="decor-rentals">Decor</option>
+            </select>
+          </div>
+          <div class="sidebar-list" id="c-mp-vendor-list"></div>
         </div>
       </aside>
 
-      <!-- Main chat -->
+      <!-- Main content area -->
       <main class="m-main">
-        <header class="m-topbar">
-          <div class="m-topbar-info">
-            <div class="m-avatar-sm peach" id="c-topbar-avatar">G</div>
-            <div><strong id="c-chat-title">Golden Hour Studio</strong><span class="muted sm" id="c-chat-subtitle">Photographer</span></div>
+        <!-- ─── Chat main ─── -->
+        <div id="c-main-chat" class="main-panel active">
+          <header class="m-topbar">
+            <div class="m-topbar-info">
+              <div class="m-avatar-sm peach" id="c-topbar-avatar">G</div>
+              <div><strong id="c-chat-title">Golden Hour Studio</strong><span class="muted sm" id="c-chat-subtitle">Photographer</span></div>
+            </div>
+            <div class="m-topbar-actions">
+              <button class="icon-btn-sm" id="c-add-to-group" title="Add to group chat"><i data-lucide="user-plus"></i></button>
+              <span class="retrieval-pill" id="c-retrieval"><i data-lucide="cpu" style="width:12px;height:12px"></i> Idle</span>
+            </div>
+          </header>
+          <!-- AI Copilot Suggestions Bar -->
+          <div class="ai-suggestions-bar hidden" id="c-suggestions-bar">
+            <div class="suggestions-header">
+              <i data-lucide="bot" class="suggestions-icon"></i>
+              <strong>AI Copilot</strong>
+              <button class="icon-close suggestions-close" id="c-suggestions-close"><i data-lucide="x" style="width:14px;height:14px"></i></button>
+            </div>
+            <div id="c-suggestions-list" class="suggestions-list"></div>
           </div>
-          <div class="m-topbar-actions">
-            <span class="retrieval-pill" id="c-retrieval">Retrieval idle</span>
+          <!-- Sensitive info warning banner -->
+          <div class="sensitive-banner hidden" id="c-sensitive-banner">
+            <i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0"></i>
+            <span id="c-sensitive-msg">Sensitive information detected in your message.</span>
+            <button class="btn btn-ghost btn-tiny" id="c-sensitive-dismiss">Dismiss</button>
+            <button class="btn btn-primary btn-tiny" id="c-sensitive-move">Move to Private Chat</button>
           </div>
-        </header>
-        <section id="c-chat-feed" class="m-feed" aria-live="polite"></section>
-        <section class="m-composer">
-          <div class="m-composer-hint"><span>Tip: <code>@ai</code> ask questions &middot; <code>@ai generate doc</code> create documents</span></div>
-          <div class="m-composer-row">
-            <textarea id="c-input" rows="1" placeholder="Type a message..." disabled></textarea>
-            <button id="c-send" class="btn btn-send" disabled>&#10148;</button>
+          <section id="c-chat-feed" class="m-feed" aria-live="polite"></section>
+          <section class="m-composer">
+            <div class="m-composer-hint"><i data-lucide="info" style="width:14px;height:14px"></i><span>Type <code>@ai</code> for AI help &middot; <code>@ai generate doc</code> for documents</span></div>
+            <div class="m-composer-row">
+              <textarea id="c-input" rows="1" placeholder="Type a message..." disabled></textarea>
+              <button id="c-send" class="btn btn-send" disabled><i data-lucide="send" style="width:18px;height:18px"></i></button>
+            </div>
+          </section>
+        </div>
+
+        <!-- ─── Private AI Chat main ─── -->
+        <div id="c-main-private-ai" class="main-panel">
+          <header class="m-topbar private-topbar">
+            <div class="m-topbar-info">
+              <div class="m-avatar-sm ai-avatar"><i data-lucide="shield" style="width:16px;height:16px;color:#fff"></i></div>
+              <div><strong>Private AI Assistant</strong><span class="muted sm">End-to-end private - only you can see this</span></div>
+            </div>
+            <div class="m-topbar-actions">
+              <span class="private-badge">Private</span>
+            </div>
+          </header>
+          <div class="private-notice">
+            <i data-lucide="lock" style="width:14px;height:14px"></i>
+            <span>This chat is private. Sensitive booking, registration, and financial information shared here is not visible to vendors or other attendees.</span>
           </div>
-        </section>
+          <section id="c-private-feed" class="m-feed" aria-live="polite"></section>
+          <section class="m-composer">
+            <div class="m-composer-hint"><i data-lucide="shield" style="width:14px;height:14px"></i><span>Private AI chat - safe for sensitive information</span></div>
+            <div class="m-composer-row">
+              <textarea id="c-private-input" rows="1" placeholder="Ask anything privately..."></textarea>
+              <button id="c-private-send" class="btn btn-send"><i data-lucide="send" style="width:18px;height:18px"></i></button>
+            </div>
+          </section>
+        </div>
+
+        <!-- ─── Budget main ─── -->
+        <div id="c-main-budget" class="main-panel">
+          <header class="m-topbar">
+            <div class="m-topbar-info"><i data-lucide="wallet" class="topbar-icon"></i><strong>Budget Tracker</strong></div>
+            <div class="m-topbar-actions">
+              <button class="btn btn-primary btn-sm" id="c-add-budget-btn"><i data-lucide="plus" style="width:14px;height:14px"></i> Category</button>
+            </div>
+          </header>
+          <div class="panel-content">
+            <div class="budget-overview" id="c-budget-overview">
+              <div class="bo-card bo-allocated"><p class="bo-num" id="c-bo-allocated">$0</p><p class="bo-label">Total Budget</p></div>
+              <div class="bo-card bo-spent"><p class="bo-num" id="c-bo-spent">$0</p><p class="bo-label">Total Spent</p></div>
+              <div class="bo-card bo-remaining"><p class="bo-num" id="c-bo-remaining">$0</p><p class="bo-label">Remaining</p></div>
+              <div class="bo-card bo-categories"><p class="bo-num" id="c-bo-cats">0</p><p class="bo-label">Categories</p></div>
+            </div>
+            <div id="c-budget-breakdown" class="budget-breakdown"></div>
+            <div class="inline-form hidden" id="c-add-budget-form">
+              <h3><i data-lucide="plus-circle" class="form-icon"></i> Add Budget Category</h3>
+              <div class="row">
+                <label class="f"><span>Category</span><select id="c-new-budget-cat">
+                  <option value="">Select...</option>
+                  <option>Venue</option><option>Catering</option><option>Photography</option>
+                  <option>Videography</option><option>Flowers</option><option>Music/DJ</option>
+                  <option>Attire</option><option>Hair &amp; Makeup</option><option>Decor</option>
+                  <option>Transportation</option><option>Invitations</option><option>Favors</option>
+                  <option>Cake</option><option>Officiant</option><option>Rings</option>
+                  <option>Honeymoon</option><option>Miscellaneous</option>
+                </select></label>
+                <label class="f"><span>Allocated ($)</span><input id="c-new-budget-amt" type="number" placeholder="5000" min="0"></label>
+              </div>
+              <div class="row"><button class="btn btn-ghost" id="c-cancel-budget">Cancel</button><button class="btn btn-primary" id="c-save-budget">Add Category</button></div>
+            </div>
+            <div class="inline-form hidden" id="c-add-expense-form">
+              <h3><i data-lucide="receipt" class="form-icon"></i> Add Expense</h3>
+              <input type="hidden" id="c-expense-budget-id">
+              <div class="row">
+                <label class="f"><span>Vendor</span><input id="c-expense-vendor" type="text" placeholder="Vendor name"></label>
+                <label class="f"><span>Amount ($)</span><input id="c-expense-amount" type="number" placeholder="500" min="0"></label>
+              </div>
+              <label class="f"><span>Description</span><input id="c-expense-desc" type="text" placeholder="What was this for?"></label>
+              <div class="row"><button class="btn btn-ghost" id="c-cancel-expense">Cancel</button><button class="btn btn-primary" id="c-save-expense">Add Expense</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Tasks main ─── -->
+        <div id="c-main-tasks" class="main-panel">
+          <header class="m-topbar">
+            <div class="m-topbar-info"><i data-lucide="check-circle" class="topbar-icon"></i><strong>Timeline &amp; Tasks</strong></div>
+            <div class="m-topbar-actions">
+              <button class="btn btn-ghost btn-sm" id="c-add-event-btn"><i data-lucide="calendar-plus" style="width:14px;height:14px"></i> Event</button>
+              <button class="btn btn-primary btn-sm" id="c-add-task-btn"><i data-lucide="plus" style="width:14px;height:14px"></i> Task</button>
+            </div>
+          </header>
+          <div class="panel-content">
+            <div class="filter-tabs" id="c-task-filters">
+              <button class="filter-tab active" data-filter="all">All</button>
+              <button class="filter-tab" data-filter="pending">Pending</button>
+              <button class="filter-tab" data-filter="in_progress">In Progress</button>
+              <button class="filter-tab" data-filter="completed">Completed</button>
+              <button class="filter-tab" data-filter="overdue">Overdue</button>
+            </div>
+            <div id="c-task-board" class="task-board"></div>
+            <h3 class="section-heading" id="c-events-heading" style="display:none"><i data-lucide="calendar" class="section-icon"></i> Wedding Day Timeline</h3>
+            <div id="c-events-timeline" class="events-timeline"></div>
+            <div class="inline-form hidden" id="c-add-task-form">
+              <h3><i data-lucide="plus-circle" class="form-icon"></i> Add Task</h3>
+              <label class="f"><span>Title</span><input id="c-task-title" type="text" placeholder="e.g. Book photographer"></label>
+              <label class="f"><span>Description</span><textarea id="c-task-desc" rows="2" placeholder="Details..."></textarea></label>
+              <div class="row">
+                <label class="f"><span>Due Date</span><input id="c-task-due" type="date"></label>
+                <label class="f"><span>Priority</span><select id="c-task-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
+              </div>
+              <div class="row">
+                <label class="f"><span>Assigned To</span><input id="c-task-assigned" type="text" placeholder="e.g. Petal &amp; Vine"></label>
+                <label class="f"><span>Category</span><input id="c-task-category" type="text" placeholder="e.g. Flowers"></label>
+              </div>
+              <div class="row"><button class="btn btn-ghost" id="c-cancel-task">Cancel</button><button class="btn btn-primary" id="c-save-task">Add Task</button></div>
+            </div>
+            <div class="inline-form hidden" id="c-add-event-form">
+              <h3><i data-lucide="calendar-plus" class="form-icon"></i> Add Timeline Event</h3>
+              <label class="f"><span>Event Name</span><input id="c-event-name" type="text" placeholder="e.g. Ceremony"></label>
+              <div class="row">
+                <label class="f"><span>Start Time</span><input id="c-event-start" type="time"></label>
+                <label class="f"><span>End Time</span><input id="c-event-end" type="time"></label>
+              </div>
+              <div class="row">
+                <label class="f"><span>Vendor</span><input id="c-event-vendor" type="text" placeholder="e.g. Golden Hour Studio"></label>
+                <label class="f"><span>Location</span><input id="c-event-location" type="text" placeholder="e.g. Garden"></label>
+              </div>
+              <label class="f"><span>Notes</span><textarea id="c-event-notes" rows="2" placeholder="Additional details..."></textarea></label>
+              <div class="row"><button class="btn btn-ghost" id="c-cancel-event">Cancel</button><button class="btn btn-primary" id="c-save-event">Add Event</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Guests main ─── -->
+        <div id="c-main-guests" class="main-panel">
+          <header class="m-topbar">
+            <div class="m-topbar-info"><i data-lucide="users" class="topbar-icon"></i><strong>Guest List &amp; RSVP</strong></div>
+            <div class="m-topbar-actions">
+              <button class="btn btn-primary btn-sm" id="c-add-guest-btn"><i data-lucide="user-plus" style="width:14px;height:14px"></i> Guest</button>
+            </div>
+          </header>
+          <div class="panel-content">
+            <div class="guest-overview" id="c-guest-overview">
+              <div class="bo-card go-attending"><p class="bo-num" id="c-go-attending">0</p><p class="bo-label">Attending</p></div>
+              <div class="bo-card go-pending"><p class="bo-num" id="c-go-pending">0</p><p class="bo-label">Pending</p></div>
+              <div class="bo-card go-declined"><p class="bo-num" id="c-go-declined">0</p><p class="bo-label">Declined</p></div>
+              <div class="bo-card go-meals"><p class="bo-num" id="c-go-total-seats">0</p><p class="bo-label">Total Seats</p></div>
+            </div>
+            <div class="meal-breakdown hidden" id="c-meal-breakdown">
+              <p class="sidebar-section-title">Meal Preferences</p>
+              <div id="c-meal-list" class="meal-list"></div>
+            </div>
+            <div class="filter-tabs" id="c-guest-filters">
+              <button class="filter-tab active" data-filter="all">All</button>
+              <button class="filter-tab" data-filter="attending">Attending</button>
+              <button class="filter-tab" data-filter="pending">Pending</button>
+              <button class="filter-tab" data-filter="declined">Declined</button>
+            </div>
+            <div id="c-guest-table" class="guest-table-wrap"></div>
+            <div class="inline-form hidden" id="c-add-guest-form">
+              <h3><i data-lucide="user-plus" class="form-icon"></i> Add Guest</h3>
+              <div class="row">
+                <label class="f"><span>Name</span><input id="c-guest-name" type="text" placeholder="Full name"></label>
+                <label class="f"><span>Email</span><input id="c-guest-email" type="email" placeholder="email@example.com"></label>
+              </div>
+              <div class="row">
+                <label class="f"><span>Phone</span><input id="c-guest-phone" type="tel" placeholder="(555) 123-4567"></label>
+                <label class="f"><span>Group</span><input id="c-guest-group" type="text" placeholder="e.g. Family, College friends"></label>
+              </div>
+              <div class="row">
+                <label class="f"><span>RSVP</span><select id="c-guest-rsvp"><option value="pending">Pending</option><option value="attending">Attending</option><option value="declined">Declined</option><option value="maybe">Maybe</option></select></label>
+                <label class="f"><span>Meal</span><select id="c-guest-meal"><option value="">Not set</option><option value="Standard">Standard</option><option value="Vegetarian">Vegetarian</option><option value="Vegan">Vegan</option><option value="Gluten-Free">Gluten-Free</option><option value="Kosher">Kosher</option><option value="Halal">Halal</option></select></label>
+              </div>
+              <div class="row">
+                <label class="f"><span>Plus One</span><select id="c-guest-plusone"><option value="0">No</option><option value="1">Yes</option></select></label>
+                <label class="f"><span>Table #</span><input id="c-guest-table-num" type="number" placeholder="1" min="1"></label>
+              </div>
+              <div class="row"><button class="btn btn-ghost" id="c-cancel-guest">Cancel</button><button class="btn btn-primary" id="c-save-guest">Add Guest</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Discover/Marketplace main ─── -->
+        <div id="c-main-discover" class="main-panel">
+          <header class="m-topbar">
+            <div class="m-topbar-info"><i data-lucide="compass" class="topbar-icon"></i><strong>Vendor Marketplace</strong></div>
+            <div class="m-topbar-actions">
+              <select id="c-mp-sort" class="discover-select compact">
+                <option value="rating">Top Rated</option>
+                <option value="price_low">Price: Low</option>
+                <option value="price_high">Price: High</option>
+                <option value="reviews">Most Reviews</option>
+              </select>
+              <button class="btn btn-ghost btn-sm" id="c-mp-compare-btn" style="display:none"><i data-lucide="columns" style="width:14px;height:14px"></i> Compare (<span id="c-mp-compare-count">0</span>)</button>
+            </div>
+          </header>
+          <div class="panel-content">
+            <div id="c-mp-grid" class="mp-grid"></div>
+            <div class="vendor-detail hidden" id="c-vendor-detail">
+              <button class="icon-close" id="c-vendor-detail-close"><i data-lucide="x"></i></button>
+              <div id="c-vendor-detail-content"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Comparison Panel ─── -->
+        <div id="c-main-compare" class="main-panel">
+          <header class="m-topbar">
+            <div class="m-topbar-info"><i data-lucide="columns" class="topbar-icon"></i><strong>Vendor Comparison</strong></div>
+            <div class="m-topbar-actions">
+              <button class="btn btn-ghost btn-sm" id="c-compare-back"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back</button>
+            </div>
+          </header>
+          <div class="panel-content">
+            <div id="c-compare-table" class="compare-table-wrap"></div>
+          </div>
+        </div>
       </main>
     </div>
 
@@ -192,12 +542,12 @@
 
     <!-- Knowledge Base panel -->
     <div class="slideover hidden" id="c-kb-panel">
-      <div class="slideover-head"><h2>Knowledge Base</h2><button class="icon-close" id="c-kb-close">&times;</button></div>
+      <div class="slideover-head"><h2>Knowledge Base</h2><button class="icon-close" id="c-kb-close"><i data-lucide="x"></i></button></div>
       <div class="slideover-body">
         <p class="muted sm">Upload contracts, schedules, or notes. The AI uses these to answer questions.</p>
         <div class="upload-area">
-          <label class="btn btn-ghost w100 file-label" for="c-file-input">Upload Files</label>
-          <button id="c-load-sample" class="btn btn-ghost w100">Load Sample Doc</button>
+          <label class="btn btn-ghost w100 file-label" for="c-file-input"><i data-lucide="upload" style="width:16px;height:16px"></i> Upload Files</label>
+          <button id="c-load-sample" class="btn btn-ghost w100"><i data-lucide="file-text" style="width:16px;height:16px"></i> Load Sample Doc</button>
           <input id="c-file-input" type="file" multiple accept=".txt,.md,.json,image/*" style="display:none">
         </div>
         <div class="kb-status" id="c-kb-status">No documents uploaded yet.</div>
@@ -208,7 +558,7 @@
 
     <!-- Manage Vendors panel -->
     <div class="slideover hidden" id="c-manage-panel">
-      <div class="slideover-head"><h2>Manage Vendors</h2><button class="icon-close" id="c-manage-close">&times;</button></div>
+      <div class="slideover-head"><h2>Manage Vendors</h2><button class="icon-close" id="c-manage-close"><i data-lucide="x"></i></button></div>
       <div class="slideover-body">
         <p class="muted sm">Manage your vendor relationships.</p>
         <div id="c-vendor-manage-list"></div>
@@ -217,13 +567,79 @@
 
     <!-- Review panel -->
     <div class="slideover hidden" id="c-review-panel">
-      <div class="slideover-head"><h2>Write a Review</h2><button class="icon-close" id="c-review-close">&times;</button></div>
+      <div class="slideover-head"><h2>Write a Review</h2><button class="icon-close" id="c-review-close"><i data-lucide="x"></i></button></div>
       <div class="slideover-body">
         <label class="f"><span>Vendor</span><select id="rv-select"><option value="">Choose vendor...</option><option value="golden-hour-studio">Golden Hour Studio</option><option value="petal-vine">Petal &amp; Vine</option><option value="blue-note-events">Blue Note Events</option><option value="hearth-table">Hearth Table</option></select></label>
         <label class="f"><span>Rating</span><div class="stars" id="rv-stars"><span class="star" data-v="1">&#9733;</span><span class="star" data-v="2">&#9733;</span><span class="star" data-v="3">&#9733;</span><span class="star" data-v="4">&#9733;</span><span class="star" data-v="5">&#9733;</span></div></label>
         <label class="f"><span>Review</span><textarea id="rv-text" rows="3" placeholder="Share your experience..."></textarea></label>
         <button id="rv-submit" class="btn btn-primary w100">Submit Review</button>
         <div id="c-reviews-list" class="reviews-list" style="margin-top:16px"></div>
+      </div>
+    </div>
+
+    <!-- New Chat Modal -->
+    <div class="modal-overlay hidden" id="c-new-chat-modal">
+      <div class="modal-glass">
+        <div class="modal-header">
+          <h2><i data-lucide="message-circle-plus" class="form-icon"></i> New Conversation</h2>
+          <button class="icon-close" id="c-new-chat-close"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+          <div class="chat-type-selector">
+            <button class="chat-type-btn active" data-type="vendor"><i data-lucide="store"></i> Vendor Chat</button>
+            <button class="chat-type-btn" data-type="group"><i data-lucide="users"></i> Group Chat</button>
+          </div>
+          <div id="new-chat-vendor" class="new-chat-panel">
+            <label class="f"><span>Select Vendor</span>
+              <select id="nc-vendor-select">
+                <option value="">Choose a vendor...</option>
+                <option value="Golden Hour Studio">Golden Hour Studio (Photographer)</option>
+                <option value="Petal &amp; Vine">Petal &amp; Vine (Florist)</option>
+                <option value="Blue Note Events">Blue Note Events (DJ)</option>
+                <option value="Hearth Table">Hearth Table (Caterer)</option>
+              </select>
+            </label>
+          </div>
+          <div id="new-chat-group" class="new-chat-panel hidden">
+            <label class="f"><span>Group Name</span><input id="nc-group-name" type="text" placeholder="e.g. Floral & Decor Team"></label>
+            <label class="f"><span>Add Members</span></label>
+            <div class="member-checkboxes" id="nc-members">
+              <label class="member-check"><input type="checkbox" value="Golden Hour Studio"> Golden Hour Studio</label>
+              <label class="member-check"><input type="checkbox" value="Petal &amp; Vine"> Petal &amp; Vine</label>
+              <label class="member-check"><input type="checkbox" value="Blue Note Events"> Blue Note Events</label>
+              <label class="member-check"><input type="checkbox" value="Hearth Table"> Hearth Table</label>
+            </div>
+            <label class="member-check" style="margin-top:8px"><input type="checkbox" id="nc-include-ai" checked> Include AI Assistant in group</label>
+          </div>
+          <button class="btn btn-primary w100" id="nc-create-btn" style="margin-top:16px">Create Chat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Copilot Action Modal -->
+    <div class="modal-overlay hidden" id="c-copilot-modal">
+      <div class="modal-glass modal-wide">
+        <div class="modal-header">
+          <h2><i data-lucide="bot" class="form-icon"></i> AI Copilot Suggestion</h2>
+          <button class="icon-close" id="c-copilot-close"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body">
+          <div class="copilot-issue" id="copilot-issue"></div>
+          <div class="copilot-solution">
+            <h4><i data-lucide="lightbulb" style="width:16px;height:16px"></i> Recommended Solution</h4>
+            <div id="copilot-solution-text"></div>
+            <div class="copilot-actions" id="copilot-action-items"></div>
+          </div>
+          <div class="copilot-custom">
+            <h4><i data-lucide="pencil" style="width:16px;height:16px"></i> Or enter your own solution</h4>
+            <textarea id="copilot-custom-input" rows="3" placeholder="Describe what you'd like to do instead..."></textarea>
+          </div>
+          <div class="copilot-buttons">
+            <button class="btn btn-ghost" id="copilot-dismiss">Dismiss</button>
+            <button class="btn btn-primary" id="copilot-apply-custom">Apply Custom Solution</button>
+            <button class="btn btn-primary" id="copilot-apply-recommended">Apply Recommended</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -233,9 +649,13 @@
     <div class="messenger">
       <aside class="m-sidebar">
         <div class="m-sidebar-head">
-          <h1 class="m-logo">W</h1>
+          <h1 class="m-logo">WedBoard</h1>
           <div class="m-sidebar-actions">
-            <button class="icon-btn" id="v-settings-btn" title="Settings">&#9881;</button>
+            <button class="icon-btn notif-btn" id="v-notif-btn" title="Notifications">
+              <i data-lucide="bell"></i>
+              <span class="notif-badge hidden" id="v-notif-badge">0</span>
+            </button>
+            <button class="icon-btn" id="v-settings-btn" title="Settings"><i data-lucide="settings"></i></button>
           </div>
           <div class="dropdown hidden" id="v-settings-menu">
             <div class="dropdown-header">
@@ -243,25 +663,25 @@
               <div><strong id="v-dd-name"></strong><p class="muted sm" id="v-dd-cat">Vendor</p></div>
             </div>
             <div class="dropdown-sep"></div>
-            <button class="dropdown-item" id="v-analytics-btn">Business Analytics</button>
-            <button class="dropdown-item" id="v-reviews-btn">My Reviews</button>
-            <button class="dropdown-item" id="v-manage-couples-btn">Manage Couples</button>
+            <button class="dropdown-item" id="v-analytics-btn"><i data-lucide="bar-chart-3" class="dd-icon"></i> Business Analytics</button>
+            <button class="dropdown-item" id="v-reviews-btn"><i data-lucide="star" class="dd-icon"></i> My Reviews</button>
+            <button class="dropdown-item" id="v-manage-couples-btn"><i data-lucide="users" class="dd-icon"></i> Manage Couples</button>
             <div class="dropdown-sep"></div>
-            <button class="dropdown-item danger" id="v-logout">Sign Out</button>
+            <button class="dropdown-item danger" id="v-logout"><i data-lucide="log-out" class="dd-icon"></i> Sign Out</button>
           </div>
         </div>
 
         <p class="sidebar-section-title">Couple Chats</p>
         <div class="m-chat-list" id="v-chat-list">
-          <button class="m-chat-item v-couple-btn active" data-cohort="Mia & Ethan Wedding">
+          <button class="m-chat-item v-couple-btn active" data-cohort="Mia &amp; Ethan Wedding">
             <div class="m-avatar blush">M</div>
             <div class="m-chat-info"><strong>Mia &amp; Ethan</strong><span>June 21</span></div>
           </button>
-          <button class="m-chat-item v-couple-btn" data-cohort="Ada & Leon Wedding">
+          <button class="m-chat-item v-couple-btn" data-cohort="Ada &amp; Leon Wedding">
             <div class="m-avatar lavender">A</div>
             <div class="m-chat-info"><strong>Ada &amp; Leon</strong><span>Aug 15</span></div>
           </button>
-          <button class="m-chat-item v-couple-btn" data-cohort="Jill & Carlos Wedding">
+          <button class="m-chat-item v-couple-btn" data-cohort="Jill &amp; Carlos Wedding">
             <div class="m-avatar mint">J</div>
             <div class="m-chat-info"><strong>Jill &amp; Carlos</strong><span>Oct 3</span></div>
           </button>
@@ -275,15 +695,15 @@
             <div><strong id="v-chat-title">Mia &amp; Ethan Wedding</strong><span class="muted sm">Active chat</span></div>
           </div>
           <div class="m-topbar-actions">
-            <span class="retrieval-pill" id="v-retrieval">Retrieval idle</span>
+            <span class="retrieval-pill" id="v-retrieval"><i data-lucide="cpu" style="width:12px;height:12px"></i> Idle</span>
           </div>
         </header>
         <section id="v-chat-feed" class="m-feed" aria-live="polite"></section>
         <section class="m-composer">
-          <div class="m-composer-hint"><span>Tip: <code>@ai</code> ask questions &middot; <code>@ai generate doc</code> create documents</span></div>
+          <div class="m-composer-hint"><i data-lucide="info" style="width:14px;height:14px"></i><span>Type <code>@ai</code> for AI help &middot; <code>@ai generate doc</code> for documents</span></div>
           <div class="m-composer-row">
             <textarea id="v-input" rows="1" placeholder="Type a message..." disabled></textarea>
-            <button id="v-send" class="btn btn-send" disabled>&#10148;</button>
+            <button id="v-send" class="btn btn-send" disabled><i data-lucide="send" style="width:18px;height:18px"></i></button>
           </div>
         </section>
       </main>
@@ -293,7 +713,7 @@
     <div class="slideoverlay hidden" id="v-overlay"></div>
 
     <div class="slideover hidden" id="v-analytics-panel">
-      <div class="slideover-head"><h2>Analytics</h2><button class="icon-close" id="v-analytics-close">&times;</button></div>
+      <div class="slideover-head"><h2>Analytics</h2><button class="icon-close" id="v-analytics-close"><i data-lucide="x"></i></button></div>
       <div class="slideover-body">
         <div class="stat-grid">
           <div class="stat-card"><p class="stat-num">12</p><p class="stat-label">Bookings</p></div>
@@ -311,18 +731,18 @@
     </div>
 
     <div class="slideover hidden" id="v-reviews-panel">
-      <div class="slideover-head"><h2>Reviews</h2><button class="icon-close" id="v-reviews-close">&times;</button></div>
+      <div class="slideover-head"><h2>Reviews</h2><button class="icon-close" id="v-reviews-close"><i data-lucide="x"></i></button></div>
       <div class="slideover-body">
         <div class="review-source"><span class="g-icon">G</span><strong>Google Reviews</strong></div>
         <div class="review-card"><div class="review-top"><span class="star-display">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span class="muted sm">2w ago</span></div><p class="review-author">Sarah M.</p><p class="review-body">Absolutely stunning photos! Captured every magical moment.</p></div>
-        <div class="review-card"><div class="review-top"><span class="star-display">&#9733;&#9733;&#9733;&#9733;&#9734;</span><span class="muted sm">1mo ago</span></div><p class="review-author">James & Lily K.</p><p class="review-body">Very professional and easy to work with. Beautiful results.</p></div>
+        <div class="review-card"><div class="review-top"><span class="star-display">&#9733;&#9733;&#9733;&#9733;&#9734;</span><span class="muted sm">1mo ago</span></div><p class="review-author">James &amp; Lily K.</p><p class="review-body">Very professional and easy to work with. Beautiful results.</p></div>
         <div class="review-source" style="margin-top:14px"><span class="g-icon wb">W</span><strong>WedBoard Reviews</strong></div>
         <div id="v-wb-reviews"></div>
       </div>
     </div>
 
     <div class="slideover hidden" id="v-manage-panel">
-      <div class="slideover-head"><h2>Manage Couples</h2><button class="icon-close" id="v-manage-close">&times;</button></div>
+      <div class="slideover-head"><h2>Manage Couples</h2><button class="icon-close" id="v-manage-close"><i data-lucide="x"></i></button></div>
       <div class="slideover-body">
         <p class="muted sm">Manage your couple relationships.</p>
         <div class="manage-item"><div class="m-avatar-sm blush">M</div><div><strong>Mia &amp; Ethan</strong><span class="muted sm">June 21</span></div><button class="btn btn-ghost btn-tiny danger">Blacklist</button></div>
@@ -344,5 +764,9 @@
   </template>
 
   <script src="app.js"></script>
+  <script>
+    // Initialize Lucide icons after DOM load
+    document.addEventListener('DOMContentLoaded', () => { if(window.lucide) lucide.createIcons(); });
+  </script>
 </body>
 </html>
