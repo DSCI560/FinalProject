@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WedBoard – AI Wedding Planner</title>
   <link rel="stylesheet" href="styles.css">
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+  <div id="scene-bg" aria-hidden="true"></div>
 
   <!-- ═══ VIEW: LANDING ═══ -->
   <div id="view-landing" class="view">
@@ -137,6 +139,7 @@
             <button class="dropdown-item" id="c-manage-vendors"><i data-lucide="users" class="dd-icon"></i> Manage Vendors</button>
             <button class="dropdown-item" id="c-write-review"><i data-lucide="star" class="dd-icon"></i> Write a Review</button>
             <button class="dropdown-item" id="c-kb-btn"><i data-lucide="database" class="dd-icon"></i> Knowledge Base</button>
+            <button class="dropdown-item" id="c-theme-toggle"><i data-lucide="moon-star" class="dd-icon"></i> Toggle Theme</button>
             <div class="dropdown-sep"></div>
             <button class="dropdown-item danger" id="c-logout"><i data-lucide="log-out" class="dd-icon"></i> Sign Out</button>
           </div>
@@ -319,9 +322,10 @@
             <button class="btn btn-ghost btn-tiny" id="c-sensitive-dismiss">Dismiss</button>
             <button class="btn btn-primary btn-tiny" id="c-sensitive-move">Move to Private Chat</button>
           </div>
+          <div id="c-chat-task-suggestions" class="chat-task-suggestions hidden" aria-live="polite"></div>
           <section id="c-chat-feed" class="m-feed" aria-live="polite"></section>
           <section class="m-composer">
-            <div class="m-composer-hint"><i data-lucide="info" style="width:14px;height:14px"></i><span>Type <code>@ai</code> for AI help &middot; <code>@ai generate doc</code> for documents</span></div>
+            <div class="m-composer-hint prominent"><i data-lucide="sparkles" style="width:14px;height:14px"></i><span>Type <code>@ai</code> for AI help &middot; <code>@ai generate doc</code> for documents</span></div>
             <div class="m-composer-row">
               <textarea id="c-input" rows="1" placeholder="Type a message..." disabled></textarea>
               <button id="c-send" class="btn btn-send" disabled><i data-lucide="send" style="width:18px;height:18px"></i></button>
@@ -346,7 +350,7 @@
           </div>
           <section id="c-private-feed" class="m-feed" aria-live="polite"></section>
           <section class="m-composer">
-            <div class="m-composer-hint"><i data-lucide="shield" style="width:14px;height:14px"></i><span>Private AI chat - safe for sensitive information</span></div>
+            <div class="m-composer-hint prominent"><i data-lucide="shield" style="width:14px;height:14px"></i><span>Private AI chat - safe for sensitive information</span></div>
             <div class="m-composer-row">
               <textarea id="c-private-input" rows="1" placeholder="Ask anything privately..."></textarea>
               <button id="c-private-send" class="btn btn-send"><i data-lucide="send" style="width:18px;height:18px"></i></button>
@@ -416,7 +420,14 @@
               <button class="filter-tab" data-filter="completed">Completed</button>
               <button class="filter-tab" data-filter="overdue">Overdue</button>
             </div>
+            <div class="task-quick-create" id="c-task-quick-create">
+              <input id="c-task-quick-title" type="text" placeholder="Quick task title">
+              <input id="c-task-quick-due" type="date">
+              <input id="c-task-quick-assignee" type="text" placeholder="Assignee">
+              <button class="btn btn-primary btn-sm" id="c-task-quick-add"><i data-lucide="plus" style="width:14px;height:14px"></i> Add</button>
+            </div>
             <div id="c-task-board" class="task-board"></div>
+            <div id="c-task-ai-suggestions" class="task-ai-suggestions hidden"></div>
             <h3 class="section-heading" id="c-events-heading" style="display:none"><i data-lucide="calendar" class="section-icon"></i> Wedding Day Timeline</h3>
             <div id="c-events-timeline" class="events-timeline"></div>
             <div class="inline-form hidden" id="c-add-task-form">
@@ -455,7 +466,10 @@
           <header class="m-topbar">
             <div class="m-topbar-info"><i data-lucide="users" class="topbar-icon"></i><strong>Guest List &amp; RSVP</strong></div>
             <div class="m-topbar-actions">
+              <button class="btn btn-ghost btn-sm" id="c-import-guests-btn"><i data-lucide="sheet" style="width:14px;height:14px"></i> Import</button>
+              <button class="btn btn-ghost btn-sm" id="c-send-invites-btn"><i data-lucide="mail" style="width:14px;height:14px"></i> Send Invites</button>
               <button class="btn btn-primary btn-sm" id="c-add-guest-btn"><i data-lucide="user-plus" style="width:14px;height:14px"></i> Guest</button>
+              <input id="c-guest-import-input" type="file" accept=".xlsx,.xls,.csv" style="display:none">
             </div>
           </header>
           <div class="panel-content">
@@ -502,23 +516,132 @@
         <!-- ─── Discover/Marketplace main ─── -->
         <div id="c-main-discover" class="main-panel">
           <header class="m-topbar">
-            <div class="m-topbar-info"><i data-lucide="compass" class="topbar-icon"></i><strong>Vendor Marketplace</strong></div>
-            <div class="m-topbar-actions">
-              <select id="c-mp-sort" class="discover-select compact">
-                <option value="rating">Top Rated</option>
-                <option value="price_low">Price: Low</option>
-                <option value="price_high">Price: High</option>
-                <option value="reviews">Most Reviews</option>
-              </select>
-              <button class="btn btn-ghost btn-sm" id="c-mp-compare-btn" style="display:none"><i data-lucide="columns" style="width:14px;height:14px"></i> Compare (<span id="c-mp-compare-count">0</span>)</button>
+            <div class="m-topbar-info"><i data-lucide="sparkles" class="topbar-icon"></i><strong>AI Wedding Studio</strong></div>
+            <div class="m-topbar-actions discover-sections" id="c-discover-sections">
+              <button class="filter-tab active" data-section="marketplace">Vendors</button>
+              <button class="filter-tab" data-section="website">Website</button>
+              <button class="filter-tab" data-section="plans">Plans</button>
+              <button class="filter-tab" data-section="cards">Cards</button>
+              <button class="filter-tab" data-section="announcements">Announcements</button>
             </div>
           </header>
           <div class="panel-content">
-            <div id="c-mp-grid" class="mp-grid"></div>
-            <div class="vendor-detail hidden" id="c-vendor-detail">
-              <button class="icon-close" id="c-vendor-detail-close"><i data-lucide="x"></i></button>
-              <div id="c-vendor-detail-content"></div>
-            </div>
+            <section id="discover-marketplace-panel" class="discover-panel active">
+              <div class="discover-panel-toolbar">
+                <select id="c-mp-sort" class="discover-select compact">
+                  <option value="rating">Top Rated</option>
+                  <option value="price_low">Price: Low</option>
+                  <option value="price_high">Price: High</option>
+                  <option value="reviews">Most Reviews</option>
+                </select>
+                <button class="btn btn-ghost btn-sm" id="c-mp-compare-btn" style="display:none"><i data-lucide="columns" style="width:14px;height:14px"></i> Compare (<span id="c-mp-compare-count">0</span>)</button>
+              </div>
+              <div id="c-mp-grid" class="mp-grid"></div>
+              <div class="vendor-detail hidden" id="c-vendor-detail">
+                <button class="icon-close" id="c-vendor-detail-close"><i data-lucide="x"></i></button>
+                <div id="c-vendor-detail-content"></div>
+              </div>
+            </section>
+
+            <section id="discover-website-panel" class="discover-panel hidden">
+              <div class="inline-form">
+                <h3><i data-lucide="layout-template" class="form-icon"></i> Website Maker</h3>
+                <div class="row">
+                  <label class="f"><span>Website Title</span><input id="c-site-title" type="text" placeholder="Riya &amp; Bhargav Wedding"></label>
+                  <label class="f"><span>Theme</span>
+                    <select id="c-site-theme">
+                      <option value="classic">Classic</option>
+                      <option value="modern">Modern</option>
+                      <option value="romantic">Romantic</option>
+                      <option value="minimal">Minimal</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="f"><span>AI Website Prompt</span><textarea id="c-site-prompt" rows="3" placeholder="Create an elegant site with story, schedule, travel details, and RSVP notes."></textarea></label>
+                <div class="row">
+                  <button class="btn btn-ghost" id="c-site-generate-btn"><i data-lucide="sparkles" style="width:14px;height:14px"></i> AI Generate</button>
+                  <button class="btn btn-primary" id="c-site-save-btn"><i data-lucide="save" style="width:14px;height:14px"></i> Save Draft</button>
+                </div>
+                <div class="row">
+                  <label class="f"><span>Publish Slug</span><input id="c-site-slug" type="text" placeholder="riya-bhargav-wedding"></label>
+                  <button class="btn btn-primary" id="c-site-publish-btn"><i data-lucide="rocket" style="width:14px;height:14px"></i> Publish</button>
+                </div>
+                <p class="muted sm" id="c-site-share-link">Not published yet.</p>
+                <div id="c-site-preview" class="site-preview"></div>
+              </div>
+            </section>
+
+            <section id="discover-plans-panel" class="discover-panel hidden">
+              <div class="inline-form">
+                <h3><i data-lucide="map" class="form-icon"></i> Seating &amp; Stay Planner</h3>
+                <div class="row map-init-row">
+                  <label class="f"><span>Basemap</span>
+                    <select id="c-map-style">
+                      <option value="liberty">Light (OpenStreetMap)</option>
+                      <option value="dark">Dark (OpenStreetMap)</option>
+                    </select>
+                  </label>
+                  <button class="btn btn-ghost" id="c-map-init-btn"><i data-lucide="map-pin" style="width:14px;height:14px"></i> Load Map</button>
+                </div>
+                <p class="muted sm map-init-note">Open-source MapLibre mode enabled. No Mapbox token required.</p>
+                <div class="row">
+                  <label class="f"><span>Item Type</span><select id="c-plan-item-type"><option value="seat">Seating</option><option value="stay">Stay</option></select></label>
+                  <label class="f"><span>Label</span><input id="c-plan-item-label" type="text" placeholder="Table 8 / Grand Hotel"></label>
+                </div>
+                <div class="row">
+                  <label class="f"><span>Latitude</span><input id="c-plan-item-lat" type="number" step="any" placeholder="34.0522"></label>
+                  <label class="f"><span>Longitude</span><input id="c-plan-item-lng" type="number" step="any" placeholder="-118.2437"></label>
+                </div>
+                <div class="row">
+                  <label class="f"><span>Capacity</span><input id="c-plan-item-capacity" type="number" min="1" placeholder="8"></label>
+                  <label class="f"><span>Table #</span><input id="c-plan-item-table" type="number" min="1" placeholder="8"></label>
+                </div>
+                <label class="f"><span>Details</span><textarea id="c-plan-item-details" rows="2" placeholder="Tooltip details"></textarea></label>
+                <button class="btn btn-primary" id="c-plan-add-item-btn"><i data-lucide="plus" style="width:14px;height:14px"></i> Add Visual Item</button>
+              </div>
+              <div id="c-plan-map" class="plan-map"></div>
+              <div id="c-plan-items-list" class="plan-items-list"></div>
+            </section>
+
+            <section id="discover-cards-panel" class="discover-panel hidden">
+              <div class="inline-form">
+                <h3><i data-lucide="image" class="form-icon"></i> Invitation Card Studio</h3>
+                <label class="f"><span>Card Title</span><input id="c-card-title" type="text" placeholder="Wedding Invitation"></label>
+                <label class="f"><span>Theme</span>
+                  <select id="c-card-theme">
+                    <option value="classic">Classic Floral</option>
+                    <option value="modern">Modern Chic</option>
+                    <option value="royal">Royal</option>
+                    <option value="minimal">Minimal</option>
+                  </select>
+                </label>
+                <label class="f"><span>AI Prompt</span><textarea id="c-card-prompt" rows="3" placeholder="Create an elegant invitation with date, venue, and RSVP line."></textarea></label>
+                <div class="row">
+                  <button class="btn btn-primary" id="c-card-generate-btn"><i data-lucide="sparkles" style="width:14px;height:14px"></i> Generate Card</button>
+                  <button class="btn btn-ghost" id="c-card-share-btn"><i data-lucide="share-2" style="width:14px;height:14px"></i> Share to Announcements</button>
+                </div>
+                <div class="row">
+                  <button class="btn btn-ghost" id="c-card-export-png-btn"><i data-lucide="image-down" style="width:14px;height:14px"></i> Export PNG</button>
+                  <button class="btn btn-ghost" id="c-card-export-pdf-btn"><i data-lucide="file-down" style="width:14px;height:14px"></i> Export PDF</button>
+                </div>
+              </div>
+              <div id="c-card-preview-wrap" class="card-preview-wrap">
+                <canvas id="c-card-canvas" width="1200" height="675"></canvas>
+              </div>
+            </section>
+
+            <section id="discover-announcements-panel" class="discover-panel hidden">
+              <div class="inline-form">
+                <h3><i data-lucide="megaphone" class="form-icon"></i> Announcements Channel</h3>
+                <div class="row">
+                  <label class="f"><span>Channel</span><select id="c-ann-channel"></select></label>
+                  <button class="btn btn-ghost" id="c-ann-refresh"><i data-lucide="refresh-ccw" style="width:14px;height:14px"></i> Refresh</button>
+                </div>
+                <div id="c-ann-feed" class="ann-feed"></div>
+                <label class="f"><span>New Announcement</span><textarea id="c-ann-input" rows="3" placeholder="Share an update with all attendees and vendors."></textarea></label>
+                <button class="btn btn-primary" id="c-ann-send-btn"><i data-lucide="send" style="width:14px;height:14px"></i> Send Announcement</button>
+              </div>
+            </section>
           </div>
         </div>
 
@@ -699,13 +822,13 @@
           </div>
         </header>
         <section id="v-chat-feed" class="m-feed" aria-live="polite"></section>
-        <section class="m-composer">
-          <div class="m-composer-hint"><i data-lucide="info" style="width:14px;height:14px"></i><span>Type <code>@ai</code> for AI help &middot; <code>@ai generate doc</code> for documents</span></div>
-          <div class="m-composer-row">
-            <textarea id="v-input" rows="1" placeholder="Type a message..." disabled></textarea>
-            <button id="v-send" class="btn btn-send" disabled><i data-lucide="send" style="width:18px;height:18px"></i></button>
-          </div>
-        </section>
+          <section class="m-composer">
+            <div class="m-composer-hint prominent"><i data-lucide="sparkles" style="width:14px;height:14px"></i><span>Type <code>@ai</code> for AI help &middot; <code>@ai generate doc</code> for documents</span></div>
+            <div class="m-composer-row">
+              <textarea id="v-input" rows="1" placeholder="Type a message..." disabled></textarea>
+              <button id="v-send" class="btn btn-send" disabled><i data-lucide="send" style="width:18px;height:18px"></i></button>
+            </div>
+          </section>
       </main>
     </div>
 
@@ -763,7 +886,14 @@
     <article class="msg"><div class="msg-av"></div><div class="msg-body"><div class="msg-meta"><strong class="msg-author"></strong><span class="msg-time"></span></div><div class="msg-text"></div></div></article>
   </template>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/deck.gl@^9.0.0/dist.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="app.js"></script>
+  <script src="enhancements.js"></script>
   <script>
     // Initialize Lucide icons after DOM load
     document.addEventListener('DOMContentLoaded', () => { if(window.lucide) lucide.createIcons(); });

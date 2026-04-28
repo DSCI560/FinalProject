@@ -41,6 +41,12 @@ const state = {
   pendingAiClarification: null,
 };
 
+function usingBackendSource() {
+  if (state.dataMode === "local") return false;
+  if (state.dataMode === "backend") return !!backendOnline;
+  return !!backendOnline;
+}
+
 // ── Lucide helper ───────────────────────────────────────────────────────────
 function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 
@@ -720,8 +726,16 @@ function renderManageVendors() {
 // ═══ BUDGET TRACKER ═══
 async function loadBudgets() {
   const wid = getWeddingId();
-  if (backendOnline) { try { state.budgets = await apiGet(`/api/budgets?wedding_id=${encodeURIComponent(wid)}`); } catch { state.budgets = getLocal(`budgets:${wid}`); } }
-  else { state.budgets = getLocal(`budgets:${wid}`); }
+  if (usingBackendSource()) {
+    try {
+      state.budgets = await apiGet(`/api/budgets?wedding_id=${encodeURIComponent(wid)}`);
+    } catch (err) {
+      console.error("Failed to load budgets from backend:", err);
+      return;
+    }
+  } else {
+    state.budgets = getLocal(`budgets:${wid}`);
+  }
   renderBudgetSidebar(); renderBudgetMain();
 }
 
@@ -808,8 +822,16 @@ function renderBudgetMain() {
 
 async function loadExpensesForBudget(budgetId) {
   let expenses = [];
-  if (backendOnline) { try { expenses = await apiGet(`/api/expenses?budget_id=${budgetId}`); } catch {} }
-  else { expenses = getLocal(`expenses:${budgetId}`); }
+  if (usingBackendSource()) {
+    try {
+      expenses = await apiGet(`/api/expenses?budget_id=${budgetId}`);
+    } catch (err) {
+      console.error(`Failed to load expenses for budget ${budgetId}:`, err);
+      return;
+    }
+  } else {
+    expenses = getLocal(`expenses:${budgetId}`);
+  }
   const container = document.getElementById(`expenses-${budgetId}`);
   if (!container) return;
   if (!expenses.length) { container.innerHTML = '<p class="muted sm" style="margin:4px 0">No expenses yet</p>'; return; }
@@ -825,7 +847,14 @@ document.getElementById("c-save-budget").onclick = async () => {
   const cat = document.getElementById("c-new-budget-cat").value;
   const amt = parseFloat(document.getElementById("c-new-budget-amt").value) || 0;
   if (!cat) { alert("Select a category."); return; }
-  if (backendOnline) { try { await apiPost("/api/budgets", { wedding_id: getWeddingId(), category: cat, allocated_amount: amt }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiPost("/api/budgets", { wedding_id: getWeddingId(), category: cat, allocated_amount: amt });
+    } catch (err) {
+      alert(`Could not save budget category: ${err.message || err}`);
+      return;
+    }
+  }
   else {
     const budgets = getLocal(`budgets:${getWeddingId()}`);
     budgets.push({ id: Date.now(), wedding_id: getWeddingId(), category: cat, allocated_amount: amt, spent_amount: 0, created_at: new Date().toISOString() });
@@ -845,7 +874,14 @@ document.getElementById("c-save-expense").onclick = async () => {
   const amount = parseFloat(document.getElementById("c-expense-amount").value) || 0;
   const desc = document.getElementById("c-expense-desc").value.trim();
   if (!amount) { alert("Enter an amount."); return; }
-  if (backendOnline) { try { await apiPost("/api/expenses", { budget_id: budgetId, wedding_id: getWeddingId(), vendor_name: vendor, amount, description: desc }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiPost("/api/expenses", { budget_id: budgetId, wedding_id: getWeddingId(), vendor_name: vendor, amount, description: desc });
+    } catch (err) {
+      alert(`Could not add expense: ${err.message || err}`);
+      return;
+    }
+  }
   else {
     const expenses = getLocal(`expenses:${budgetId}`);
     expenses.push({ id: Date.now(), budget_id: budgetId, wedding_id: getWeddingId(), vendor_name: vendor, amount, description: desc, created_at: new Date().toISOString() });
@@ -861,13 +897,27 @@ document.getElementById("c-save-expense").onclick = async () => {
 
 window.deleteBudget = async function(id) {
   if (!confirm("Delete this budget category and all its expenses?")) return;
-  if (backendOnline) { try { await fetch(`${BACKEND_URL}/api/budgets/${id}`, { method: "DELETE" }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiDelete(`/api/budgets/${id}`);
+    } catch (err) {
+      alert(`Could not delete budget category: ${err.message || err}`);
+      return;
+    }
+  }
   else { let budgets = getLocal(`budgets:${getWeddingId()}`); budgets = budgets.filter(b => b.id !== id); setLocal(`budgets:${getWeddingId()}`, budgets); }
   loadBudgets();
 };
 
 window.deleteExpense = async function(id) {
-  if (backendOnline) { try { await fetch(`${BACKEND_URL}/api/expenses/${id}`, { method: "DELETE" }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiDelete(`/api/expenses/${id}`);
+    } catch (err) {
+      alert(`Could not delete expense: ${err.message || err}`);
+      return;
+    }
+  }
   else {
     const wid = getWeddingId(), budgets = getLocal(`budgets:${wid}`);
     for (const b of budgets) {
@@ -882,8 +932,16 @@ window.deleteExpense = async function(id) {
 // ═══ TASKS / TIMELINE ═══
 async function loadTasks() {
   const wid = getWeddingId();
-  if (backendOnline) { try { state.tasks = await apiGet(`/api/tasks?wedding_id=${encodeURIComponent(wid)}`); } catch { state.tasks = getLocal(`tasks:${wid}`); } }
-  else { state.tasks = getLocal(`tasks:${wid}`); }
+  if (usingBackendSource()) {
+    try {
+      state.tasks = await apiGet(`/api/tasks?wedding_id=${encodeURIComponent(wid)}`);
+    } catch (err) {
+      console.error("Failed to load tasks from backend:", err);
+      return;
+    }
+  } else {
+    state.tasks = getLocal(`tasks:${wid}`);
+  }
   renderTaskSidebar(); renderTaskBoard();
 }
 
@@ -950,14 +1008,28 @@ function renderTaskBoard() {
 
 window.toggleTask = async function(id, currentlyDone) {
   const newStatus = currentlyDone ? "pending" : "completed";
-  if (backendOnline) { try { await apiPut(`/api/tasks/${id}`, { status: newStatus }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiPut(`/api/tasks/${id}`, { status: newStatus });
+    } catch (err) {
+      alert(`Could not update task: ${err.message || err}`);
+      return;
+    }
+  }
   else { const tasks = getLocal(`tasks:${getWeddingId()}`); const t = tasks.find(x => x.id === id); if (t) { t.status = newStatus; setLocal(`tasks:${getWeddingId()}`, tasks); } }
   loadTasks();
 };
 
 window.deleteTaskItem = async function(id) {
   if (!confirm("Delete this task?")) return;
-  if (backendOnline) { try { await fetch(`${BACKEND_URL}/api/tasks/${id}`, { method: "DELETE" }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiDelete(`/api/tasks/${id}`);
+    } catch (err) {
+      alert(`Could not delete task: ${err.message || err}`);
+      return;
+    }
+  }
   else { let tasks = getLocal(`tasks:${getWeddingId()}`); tasks = tasks.filter(t => t.id !== id); setLocal(`tasks:${getWeddingId()}`, tasks); }
   loadTasks();
 };
@@ -968,7 +1040,14 @@ document.getElementById("c-save-task").onclick = async () => {
   const title = document.getElementById("c-task-title").value.trim();
   if (!title) { alert("Enter a task title."); return; }
   const taskData = { wedding_id: getWeddingId(), title, description: document.getElementById("c-task-desc").value.trim(), due_date: document.getElementById("c-task-due").value, priority: document.getElementById("c-task-priority").value, assigned_to: document.getElementById("c-task-assigned").value.trim(), category: document.getElementById("c-task-category").value.trim(), status: "pending" };
-  if (backendOnline) { try { await apiPost("/api/tasks", taskData); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiPost("/api/tasks", taskData);
+    } catch (err) {
+      alert(`Could not create task: ${err.message || err}`);
+      return;
+    }
+  }
   else { const tasks = getLocal(`tasks:${getWeddingId()}`); tasks.push({ ...taskData, id: Date.now(), created_at: new Date().toISOString() }); setLocal(`tasks:${getWeddingId()}`, tasks); }
   ["c-task-title","c-task-desc","c-task-due","c-task-assigned","c-task-category"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("c-task-priority").value = "medium";
@@ -980,8 +1059,16 @@ document.getElementById("c-save-task").onclick = async () => {
 // ═══ EVENTS ═══
 async function loadEvents() {
   const wid = getWeddingId();
-  if (backendOnline) { try { state.events = await apiGet(`/api/events?wedding_id=${encodeURIComponent(wid)}`); } catch { state.events = getLocal(`events:${wid}`); } }
-  else { state.events = getLocal(`events:${wid}`); }
+  if (usingBackendSource()) {
+    try {
+      state.events = await apiGet(`/api/events?wedding_id=${encodeURIComponent(wid)}`);
+    } catch (err) {
+      console.error("Failed to load events from backend:", err);
+      return;
+    }
+  } else {
+    state.events = getLocal(`events:${wid}`);
+  }
   renderEventsTimeline();
 }
 
@@ -1000,7 +1087,14 @@ function renderEventsTimeline() {
 
 window.deleteEvent = async function(id) {
   if (!confirm("Delete this event?")) return;
-  if (backendOnline) { try { await fetch(`${BACKEND_URL}/api/events/${id}`, { method: "DELETE" }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiDelete(`/api/events/${id}`);
+    } catch (err) {
+      alert(`Could not delete event: ${err.message || err}`);
+      return;
+    }
+  }
   else { let events = getLocal(`events:${getWeddingId()}`); events = events.filter(e => e.id !== id); setLocal(`events:${getWeddingId()}`, events); }
   loadEvents();
 };
@@ -1011,7 +1105,14 @@ document.getElementById("c-save-event").onclick = async () => {
   const name = document.getElementById("c-event-name").value.trim();
   if (!name) { alert("Enter event name."); return; }
   const eventData = { wedding_id: getWeddingId(), name, start_time: document.getElementById("c-event-start").value, end_time: document.getElementById("c-event-end").value, vendor_name: document.getElementById("c-event-vendor").value.trim(), location: document.getElementById("c-event-location").value.trim(), notes: document.getElementById("c-event-notes").value.trim() };
-  if (backendOnline) { try { await apiPost("/api/events", eventData); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiPost("/api/events", eventData);
+    } catch (err) {
+      alert(`Could not create event: ${err.message || err}`);
+      return;
+    }
+  }
   else { const events = getLocal(`events:${getWeddingId()}`); events.push({ ...eventData, id: Date.now(), created_at: new Date().toISOString() }); setLocal(`events:${getWeddingId()}`, events); }
   ["c-event-name","c-event-start","c-event-end","c-event-vendor","c-event-location","c-event-notes"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("c-add-event-form").classList.add("hidden");
@@ -1021,8 +1122,16 @@ document.getElementById("c-save-event").onclick = async () => {
 // ═══ GUEST LIST ═══
 async function loadGuests() {
   const wid = getWeddingId();
-  if (backendOnline) { try { state.guests = await apiGet(`/api/guests?wedding_id=${encodeURIComponent(wid)}`); } catch { state.guests = getLocal(`guests:${wid}`); } }
-  else { state.guests = getLocal(`guests:${wid}`); }
+  if (usingBackendSource()) {
+    try {
+      state.guests = await apiGet(`/api/guests?wedding_id=${encodeURIComponent(wid)}`);
+    } catch (err) {
+      console.error("Failed to load guests from backend:", err);
+      return;
+    }
+  } else {
+    state.guests = getLocal(`guests:${wid}`);
+  }
   renderGuestSidebar(); renderGuestTable();
 }
 
@@ -1091,14 +1200,28 @@ function renderGuestTable() {
 }
 
 window.updateGuestRSVP = async function(id, newStatus) {
-  if (backendOnline) { try { await apiPut(`/api/guests/${id}`, { rsvp_status: newStatus }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiPut(`/api/guests/${id}`, { rsvp_status: newStatus });
+    } catch (err) {
+      alert(`Could not update guest RSVP: ${err.message || err}`);
+      return;
+    }
+  }
   else { const guests = getLocal(`guests:${getWeddingId()}`); const g = guests.find(x => x.id === id); if (g) { g.rsvp_status = newStatus; setLocal(`guests:${getWeddingId()}`, guests); } }
   loadGuests();
 };
 
 window.deleteGuest = async function(id) {
   if (!confirm("Remove this guest?")) return;
-  if (backendOnline) { try { await fetch(`${BACKEND_URL}/api/guests/${id}`, { method: "DELETE" }); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiDelete(`/api/guests/${id}`);
+    } catch (err) {
+      alert(`Could not remove guest: ${err.message || err}`);
+      return;
+    }
+  }
   else { let guests = getLocal(`guests:${getWeddingId()}`); guests = guests.filter(g => g.id !== id); setLocal(`guests:${getWeddingId()}`, guests); }
   loadGuests();
 };
@@ -1109,7 +1232,14 @@ document.getElementById("c-save-guest").onclick = async () => {
   const name = document.getElementById("c-guest-name").value.trim();
   if (!name) { alert("Enter guest name."); return; }
   const guestData = { wedding_id: getWeddingId(), name, email: document.getElementById("c-guest-email").value.trim(), phone: document.getElementById("c-guest-phone").value.trim(), rsvp_status: document.getElementById("c-guest-rsvp").value, meal_preference: document.getElementById("c-guest-meal").value, plus_one: parseInt(document.getElementById("c-guest-plusone").value) || 0, table_number: parseInt(document.getElementById("c-guest-table-num").value) || null, group_name: document.getElementById("c-guest-group").value.trim() };
-  if (backendOnline) { try { await apiPost("/api/guests", guestData); } catch {} }
+  if (usingBackendSource()) {
+    try {
+      await apiPost("/api/guests", guestData);
+    } catch (err) {
+      alert(`Could not add guest: ${err.message || err}`);
+      return;
+    }
+  }
   else { const guests = getLocal(`guests:${getWeddingId()}`); guests.push({ ...guestData, id: Date.now(), created_at: new Date().toISOString() }); setLocal(`guests:${getWeddingId()}`, guests); }
   ["c-guest-name","c-guest-email","c-guest-phone","c-guest-group","c-guest-table-num"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("c-guest-rsvp").value = "pending"; document.getElementById("c-guest-meal").value = ""; document.getElementById("c-guest-plusone").value = "0";
@@ -1210,8 +1340,19 @@ document.getElementById("c-vendor-detail-close").onclick = () => document.getEle
 // ═══ NOTIFICATIONS ═══
 async function loadNotifications() {
   const wid = getWeddingId();
-  if (backendOnline) { try { const data = await apiGet(`/api/notifications?wedding_id=${encodeURIComponent(wid)}`); state.notifications = data.notifications || []; state.unreadNotifs = data.unread || 0; } catch { state.notifications = getLocal(`notifs:${wid}`); state.unreadNotifs = state.notifications.filter(n => !n.read_status).length; } }
-  else { state.notifications = getLocal(`notifs:${wid}`); state.unreadNotifs = state.notifications.filter(n => !n.read_status).length; }
+  if (usingBackendSource()) {
+    try {
+      const data = await apiGet(`/api/notifications?wedding_id=${encodeURIComponent(wid)}`);
+      state.notifications = data.notifications || [];
+      state.unreadNotifs = data.unread || 0;
+    } catch (err) {
+      console.error("Failed to load notifications from backend:", err);
+      return;
+    }
+  } else {
+    state.notifications = getLocal(`notifs:${wid}`);
+    state.unreadNotifs = state.notifications.filter(n => !n.read_status).length;
+  }
   renderNotifications();
 }
 
@@ -1224,19 +1365,37 @@ function renderNotifications() {
 }
 
 window.markNotifRead = async function(id) {
-  if (backendOnline) { try { await fetch(`${BACKEND_URL}/api/notifications/${id}/read`, { method: "PUT" }); } catch {} }
+  if (usingBackendSource()) {
+    try { await apiPut(`/api/notifications/${id}/read`, {}); } catch {}
+  }
   loadNotifications();
 };
 
 document.getElementById("c-notif-read-all").onclick = async () => {
-  if (backendOnline) { try { await fetch(`${BACKEND_URL}/api/notifications/read-all?wedding_id=${encodeURIComponent(getWeddingId())}`, { method: "PUT" }); } catch {} }
+  if (usingBackendSource()) { try { await apiPut(`/api/notifications/read-all?wedding_id=${encodeURIComponent(getWeddingId())}`, {}); } catch {} }
   else { const notifs = getLocal(`notifs:${getWeddingId()}`); notifs.forEach(n => n.read_status = 1); setLocal(`notifs:${getWeddingId()}`, notifs); }
   loadNotifications();
 };
 
-async function addNotification(type, title, message) {
-  if (backendOnline) { try { await apiPost("/api/notifications", { wedding_id: getWeddingId(), type, title, message }); } catch {} }
-  else { const notifs = getLocal(`notifs:${getWeddingId()}`); notifs.unshift({ id: Date.now(), wedding_id: getWeddingId(), type, title, message, read_status: 0, created_at: new Date().toISOString() }); setLocal(`notifs:${getWeddingId()}`, notifs); }
+async function addNotification(type, title, message, actionTarget = null) {
+  if (usingBackendSource()) {
+    try {
+      await apiPost("/api/notifications", { wedding_id: getWeddingId(), type, title, message, action_target: actionTarget });
+    } catch {}
+  } else {
+    const notifs = getLocal(`notifs:${getWeddingId()}`);
+    notifs.unshift({
+      id: Date.now(),
+      wedding_id: getWeddingId(),
+      type,
+      title,
+      message,
+      read_status: 0,
+      action_target: actionTarget || null,
+      created_at: new Date().toISOString(),
+    });
+    setLocal(`notifs:${getWeddingId()}`, notifs);
+  }
   loadNotifications();
 }
 
@@ -1722,8 +1881,12 @@ function localPlanAiActions(instruction, suggestionContext = null) {
   const actions = [];
   const vendors = extractMentionedVendors(instruction);
 
-  if ((/\bremove\b|\bdelete\b|\bcancel\b/.test(lower)) && (/\brecent\b|\blatest\b|\bnewly added\b/.test(lower)) && (/\bexpense\b|\bitem\b|\bcost\b/.test(lower))) actions.push({ type: "remove_recent_expenses", until_within_budget: true });
+  const wantsRollback = (/\bremove\b|\bdelete\b|\bcancel\b/.test(lower)) && (/\brecent\b|\brecently\b|\blatest\b|\bnewly added\b|\bover budget\b/.test(lower));
+  const mentionsSpendItems = (/\bexpense\b|\bitem\b|\bcost\b|\bcharge\b|\bline item\b/.test(lower));
+  if (wantsRollback && (mentionsSpendItems || /\bover budget\b/.test(lower))) actions.push({ type: "remove_recent_expenses", until_within_budget: true });
   if ((/\binform\b|\bnotify\b|\bmessage\b|\btell\b/.test(lower)) && /\bvendor/.test(lower) && /\bgroup\b/.test(lower)) actions.push({ type: "notify_group_chat", vendor_names: vendors, message: "Quick update: I rolled back recent over-budget expenses to stay within plan. Please confirm any impacted deliverables in this thread." });
+  if (((/\bsend\b|\bdispatch\b|\bshare\b/.test(lower) && /\binvite/.test(lower)) || (/\brsvp\b/.test(lower) && /\blink\b/.test(lower)))) actions.push({ type: "send_guest_invites", send_email: true });
+  if ((/\bannounce\b|\bannouncement\b|\bbroadcast\b|\bpost update\b/.test(lower)) && !/\bnot\s+announce\b/.test(lower)) actions.push({ type: "post_announcement", message: stripFormatHintsFromPrompt(instruction).slice(0, 400) });
   if (/\bcreate\b.*\btask\b|\badd\b.*\btask\b/.test(lower)) actions.push({ type: "create_task", title: "AI follow-up task", description: stripFormatHintsFromPrompt(instruction), due_date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), priority: "high", assigned_to: state.currentUser?.profile?.partner1 || state.currentUser?.username || "", category: "Planning" });
   if (/\bextend\b.*\boverdue\b/.test(lower)) actions.push({ type: "extend_overdue_tasks", days: 7 });
   if (/\breallocate\b|\bmove\b.*\bbudget\b/.test(lower)) {
@@ -1792,13 +1955,21 @@ function pushAiMessageToVendor(vendorName, text) {
 }
 
 async function getExpensesForBudget(budgetId) {
-  if (backendOnline) { try { return await apiGet(`/api/expenses?budget_id=${budgetId}`); } catch {} }
+  if (usingBackendSource()) {
+    try { return await apiGet(`/api/expenses?budget_id=${budgetId}`); }
+    catch { return []; }
+  }
   return getLocal(`expenses:${budgetId}`);
 }
 
 async function removeExpenseByIdInternal(expenseId) {
-  if (backendOnline) {
-    try { await fetch(`${BACKEND_URL}/api/expenses/${expenseId}`, { method: "DELETE" }); return true; } catch {}
+  if (usingBackendSource()) {
+    try {
+      await apiDelete(`/api/expenses/${expenseId}`);
+      return true;
+    } catch {
+      return false;
+    }
   }
   const wid = getWeddingId();
   const budgets = getLocal(`budgets:${wid}`);
@@ -1817,8 +1988,13 @@ async function removeExpenseByIdInternal(expenseId) {
 }
 
 async function createTaskInternal(taskPayload) {
-  if (backendOnline) {
-    try { await apiPost("/api/tasks", taskPayload); return true; } catch {}
+  if (usingBackendSource()) {
+    try {
+      await apiPost("/api/tasks", taskPayload);
+      return true;
+    } catch {
+      return false;
+    }
   }
   const tasks = getLocal(`tasks:${getWeddingId()}`);
   tasks.push({ ...taskPayload, id: Date.now(), created_at: new Date().toISOString() });
@@ -1827,8 +2003,13 @@ async function createTaskInternal(taskPayload) {
 }
 
 async function updateTaskInternal(taskId, fields) {
-  if (backendOnline) {
-    try { await apiPut(`/api/tasks/${taskId}`, fields); return true; } catch {}
+  if (usingBackendSource()) {
+    try {
+      await apiPut(`/api/tasks/${taskId}`, fields);
+      return true;
+    } catch {
+      return false;
+    }
   }
   const tasks = getLocal(`tasks:${getWeddingId()}`);
   const task = tasks.find(t => t.id === taskId);
@@ -1885,10 +2066,56 @@ async function executeAiActions(actions, context = "main") {
         if (!vendors.length) throw new Error("No vendors identified.");
         vendors.forEach(v => pushAiMessageToVendor(v, action.message || "AI update: requested changes were completed."));
         completed.push(`Notified ${vendors.length} vendor chat(s).`);
+      } else if (type === "send_guest_invites") {
+        if (!usingBackendSource()) throw new Error("Invite dispatch requires backend mode.");
+        const pendingIds = state.guests
+          .filter(g => g.rsvp_status !== "attending")
+          .map(g => Number(g.id))
+          .filter(Number.isFinite);
+        const guestIds = Array.isArray(action.guest_ids) && action.guest_ids.length
+          ? action.guest_ids.map(Number).filter(Number.isFinite)
+          : pendingIds;
+        const out = await apiPost("/api/guest-invites/send", {
+          wedding_id: getWeddingId(),
+          guest_ids: guestIds,
+          send_email: action.send_email !== false,
+        });
+        touched.add("guests");
+        touched.add("announcements");
+        completed.push(`Generated invite links for ${out.results?.length || 0} guest(s).`);
+      } else if (type === "post_announcement") {
+        const message = String(action.message || "").trim();
+        if (!message) throw new Error("Announcement message is required.");
+        if (usingBackendSource()) {
+          await apiPost("/api/announcements/messages", {
+            wedding_id: getWeddingId(),
+            author_type: "ai",
+            author_name: "AI Assistant",
+            message,
+            metadata: action.metadata || {},
+          });
+        } else {
+          const channels = getLocal(`ann_channels:${getWeddingId()}`);
+          const channel = channels[0] || { id: Date.now(), name: "Announcements", is_default: 1 };
+          if (!channels.length) setLocal(`ann_channels:${getWeddingId()}`, [channel]);
+          const key = `ann_messages:${getWeddingId()}:${channel.id}`;
+          const rows = getLocal(key);
+          rows.unshift({
+            id: Date.now(),
+            author_type: "ai",
+            author_name: "AI Assistant",
+            message,
+            metadata_json: action.metadata || {},
+            created_at: new Date().toISOString(),
+          });
+          setLocal(key, rows);
+        }
+        touched.add("announcements");
+        completed.push("Posted an announcement update.");
       } else if (type === "create_task") {
         const title = String(action.title || "").trim();
         if (!title) throw new Error("Task title missing.");
-        await createTaskInternal({
+        const ok = await createTaskInternal({
           wedding_id: getWeddingId(),
           title,
           description: action.description || "",
@@ -1898,6 +2125,7 @@ async function executeAiActions(actions, context = "main") {
           category: action.category || "Planning",
           status: action.status || "pending",
         });
+        if (!ok) throw new Error("Task creation failed.");
         touched.add("tasks");
         completed.push(`Created task "${title}".`);
       } else if (type === "update_task") {
@@ -1934,7 +2162,7 @@ async function executeAiActions(actions, context = "main") {
         const finalAmount = Math.min(amount, sourceRemaining || amount);
         const newFrom = Number(from.allocated_amount || 0) - finalAmount;
         const newTo = Number(to.allocated_amount || 0) + finalAmount;
-        if (backendOnline) {
+        if (usingBackendSource()) {
           await apiPut(`/api/budgets/${from.id}`, { allocated_amount: newFrom });
           await apiPut(`/api/budgets/${to.id}`, { allocated_amount: newTo });
         } else {
@@ -1951,8 +2179,13 @@ async function executeAiActions(actions, context = "main") {
         completed.push(`Reallocated $${Math.round(finalAmount).toLocaleString()} from ${from.category} to ${to.category}.`);
       } else if (type === "switch_tab") {
         const tab = String(action.tab || action.data || "").toLowerCase();
-        if (["chat", "budget", "tasks", "guests", "discover"].includes(tab)) {
+        if (["chat", "budget", "tasks", "guests", "discover", "website", "plans", "cards", "announcements"].includes(tab)) {
+          if (["website", "plans", "cards", "announcements"].includes(tab)) {
+            switchTab("discover");
+            if (typeof window.showDiscoverSection === "function") window.showDiscoverSection(tab);
+          } else {
           switchTab(tab);
+          }
           completed.push(`Opened the ${tab} tab.`);
         }
       } else if (type === "generate_document") {
@@ -1968,7 +2201,16 @@ async function executeAiActions(actions, context = "main") {
 
   if (touched.has("budget")) await loadBudgets();
   if (touched.has("tasks")) await loadTasks();
-  if (completed.length) await addNotification("ai_action", "AI Copilot Actions Completed", completed.join(" "));
+  if (completed.length) {
+    const actionTarget = touched.has("budget")
+      ? { tab: "budget" }
+      : touched.has("tasks")
+        ? { tab: "tasks" }
+        : touched.has("guests")
+          ? { tab: "guests" }
+          : null;
+    await addNotification("ai_action", "AI Copilot Actions Completed", completed.join(" "), actionTarget);
+  }
   return { completed, failed, touched };
 }
 
@@ -2101,3 +2343,8 @@ async function checkBackend() { try { const r = await fetch(`${BACKEND_URL}/api/
 async function apiPost(path, body) { const r = await fetch(`${BACKEND_URL}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function apiGet(path) { const r = await fetch(`${BACKEND_URL}${path}`); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function apiPut(path, body) { const r = await fetch(`${BACKEND_URL}${path}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
+async function apiDelete(path) {
+  const r = await fetch(`${BACKEND_URL}${path}`, { method: "DELETE" });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  try { return await r.json(); } catch { return { success: true }; }
+}

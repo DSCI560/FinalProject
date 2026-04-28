@@ -9,9 +9,13 @@ import re
 import json
 import uuid
 import sqlite3
+import secrets
+import smtplib
 from datetime import datetime, timedelta
 from pathlib import Path
 from itertools import combinations
+from email.message import EmailMessage
+from html import escape as html_escape
 
 from flask import Flask, request, jsonify, send_from_directory, send_file, Response
 from flask_cors import CORS
@@ -41,6 +45,12 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 openai_client  = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
 EMBED_MODEL = os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small")
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:5000").rstrip("/")
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASS = os.getenv("SMTP_PASS", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "")
 
 # ── ChromaDB (persistent on disk) ─────────────────────────────────────────────
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
@@ -51,6 +61,33 @@ def get_db():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _smtp_ready():
+    return bool(SMTP_HOST and SMTP_PORT and SMTP_FROM)
+
+
+def _send_email(to_email: str, subject: str, body: str):
+    if not _smtp_ready():
+        return {"sent": False, "reason": "smtp_not_configured"}
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_email
+    msg.set_content(body)
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as smtp:
+            smtp.starttls()
+            if SMTP_USER:
+                smtp.login(SMTP_USER, SMTP_PASS)
+            smtp.send_message(msg)
+        return {"sent": True}
+    except Exception as e:
+        return {"sent": False, "reason": str(e)[:200]}
+
+
+def _mutation_not_found(entity: str, entity_id):
+    return jsonify({"error": f"{entity} {entity_id} not found"}), 404
 
 
 def init_db():
@@ -207,9 +244,115 @@ def init_db():
             message     TEXT,
             read_status INTEGER DEFAULT 0,
             action_url  TEXT,
+            action_target TEXT,
             created_at  TEXT DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS ai_action_logs (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            wedding_id   TEXT NOT NULL,
+            user_id      TEXT,
+            context      TEXT,
+            instruction  TEXT,
+            plan_json    TEXT,
+            result_json  TEXT,
+            status       TEXT,
+            created_at   TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS guest_invite_tokens (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            wedding_id   TEXT NOT NULL,
+            guest_id     INTEGER NOT NULL REFERENCES guests(id),
+            token        TEXT UNIQUE NOT NULL,
+            sent_to      TEXT,
+            expires_at   TEXT,
+            status       TEXT DEFAULT 'active' CHECK(status IN ('active','used','expired','revoked')),
+            last_sent_at TEXT,
+            created_at   TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS guest_checkins (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            wedding_id      TEXT NOT NULL,
+            guest_id        INTEGER NOT NULL REFERENCES guests(id),
+            token           TEXT,
+            submitted_json  TEXT NOT NULL,
+            created_at      TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS announcement_channels (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            wedding_id   TEXT NOT NULL,
+            name         TEXT NOT NULL,
+            is_default   INTEGER DEFAULT 0,
+            created_at   TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS announcement_messages (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel_id    INTEGER NOT NULL REFERENCES announcement_channels(id),
+            wedding_id    TEXT NOT NULL,
+            author_type   TEXT NOT NULL CHECK(author_type IN ('user','ai','system')),
+            author_name   TEXT,
+            message       TEXT NOT NULL,
+            metadata_json TEXT,
+            created_at    TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS wedding_sites (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            wedding_id    TEXT NOT NULL,
+            slug          TEXT UNIQUE,
+            title         TEXT,
+            theme         TEXT,
+            content_json  TEXT,
+            status        TEXT DEFAULT 'draft' CHECK(status IN ('draft','published','archived')),
+            created_at    TEXT DEFAULT (datetime('now')),
+            updated_at    TEXT DEFAULT (datetime('now')),
+            published_at  TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS visual_plan_items (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            wedding_id           TEXT NOT NULL,
+            item_type            TEXT NOT NULL CHECK(item_type IN ('seat','stay')),
+            label                TEXT NOT NULL,
+            lat                  REAL,
+            lng                  REAL,
+            table_number         INTEGER,
+            capacity             INTEGER,
+            assigned_guests_json TEXT,
+            details_json         TEXT,
+            created_at           TEXT DEFAULT (datetime('now')),
+            updated_at           TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS invitation_cards (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            wedding_id    TEXT NOT NULL,
+            title         TEXT NOT NULL,
+            prompt        TEXT,
+            theme         TEXT,
+            content_json  TEXT,
+            created_by    TEXT,
+            created_at    TEXT DEFAULT (datetime('now'))
+        );
         """)
+
+        # Backward-compat migration for older DBs missing action_target
+        try:
+            conn.execute("ALTER TABLE notifications ADD COLUMN action_target TEXT")
+        except Exception:
+            pass
+
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_budgets_wedding ON budgets(wedding_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_wedding ON wedding_tasks(wedding_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_guests_wedding ON guests(wedding_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_notifs_wedding ON notifications(wedding_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_guest_invites_wedding ON guest_invite_tokens(wedding_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ann_messages_wedding ON announcement_messages(wedding_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_visual_items_wedding ON visual_plan_items(wedding_id)")
 
         # Seed marketplace vendors if empty
         count = conn.execute("SELECT COUNT(*) FROM marketplace_vendors").fetchone()[0]
@@ -288,6 +431,7 @@ def status():
     return jsonify({
         "status":           "ok",
         "openai_ready":     bool(OPENAI_API_KEY),
+        "smtp_ready":       _smtp_ready(),
         "sqlite_db":        str(DB_PATH),
         "chroma_path":      str(CHROMA_PATH),
     })
@@ -409,20 +553,26 @@ def create_budget():
 @app.route("/api/budgets/<int:budget_id>", methods=["PUT"])
 def update_budget(budget_id):
     data = request.get_json() or {}
+    if "allocated_amount" not in data:
+        return jsonify({"error": "allocated_amount is required"}), 400
     with get_db() as conn:
-        conn.execute(
+        cur = conn.execute(
             "UPDATE budgets SET allocated_amount=? WHERE id=?",
             (data.get("allocated_amount", 0), budget_id)
         )
-    return jsonify({"success": True})
+    if cur.rowcount == 0:
+        return _mutation_not_found("budget", budget_id)
+    return jsonify({"success": True, "updated": cur.rowcount})
 
 
 @app.route("/api/budgets/<int:budget_id>", methods=["DELETE"])
 def delete_budget(budget_id):
     with get_db() as conn:
         conn.execute("DELETE FROM expenses WHERE budget_id=?", (budget_id,))
-        conn.execute("DELETE FROM budgets WHERE id=?", (budget_id,))
-    return jsonify({"success": True})
+        cur = conn.execute("DELETE FROM budgets WHERE id=?", (budget_id,))
+    if cur.rowcount == 0:
+        return _mutation_not_found("budget", budget_id)
+    return jsonify({"success": True, "deleted": cur.rowcount})
 
 
 @app.route("/api/expenses")
@@ -462,11 +612,12 @@ def create_expense():
 def delete_expense(expense_id):
     with get_db() as conn:
         row = conn.execute("SELECT budget_id FROM expenses WHERE id=?", (expense_id,)).fetchone()
-        if row:
-            conn.execute("DELETE FROM expenses WHERE id=?", (expense_id,))
-            total = conn.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE budget_id=?", (row["budget_id"],)).fetchone()[0]
-            conn.execute("UPDATE budgets SET spent_amount=? WHERE id=?", (total, row["budget_id"]))
-    return jsonify({"success": True})
+        if not row:
+            return _mutation_not_found("expense", expense_id)
+        conn.execute("DELETE FROM expenses WHERE id=?", (expense_id,))
+        total = conn.execute("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE budget_id=?", (row["budget_id"],)).fetchone()[0]
+        conn.execute("UPDATE budgets SET spent_amount=? WHERE id=?", (total, row["budget_id"]))
+    return jsonify({"success": True, "deleted": 1})
 
 
 @app.route("/api/budget-summary")
@@ -532,15 +683,19 @@ def update_task(task_id):
         return jsonify({"error": "no fields to update"}), 400
     vals.append(task_id)
     with get_db() as conn:
-        conn.execute(f"UPDATE wedding_tasks SET {','.join(fields)} WHERE id=?", vals)
-    return jsonify({"success": True})
+        cur = conn.execute(f"UPDATE wedding_tasks SET {','.join(fields)} WHERE id=?", vals)
+    if cur.rowcount == 0:
+        return _mutation_not_found("task", task_id)
+    return jsonify({"success": True, "updated": cur.rowcount})
 
 
 @app.route("/api/tasks/<int:task_id>", methods=["DELETE"])
 def delete_task(task_id):
     with get_db() as conn:
-        conn.execute("DELETE FROM wedding_tasks WHERE id=?", (task_id,))
-    return jsonify({"success": True})
+        cur = conn.execute("DELETE FROM wedding_tasks WHERE id=?", (task_id,))
+    if cur.rowcount == 0:
+        return _mutation_not_found("task", task_id)
+    return jsonify({"success": True, "deleted": cur.rowcount})
 
 
 @app.route("/api/task-summary")
@@ -600,15 +755,19 @@ def update_event(event_id):
         return jsonify({"error": "no fields to update"}), 400
     vals.append(event_id)
     with get_db() as conn:
-        conn.execute(f"UPDATE wedding_events SET {','.join(fields)} WHERE id=?", vals)
-    return jsonify({"success": True})
+        cur = conn.execute(f"UPDATE wedding_events SET {','.join(fields)} WHERE id=?", vals)
+    if cur.rowcount == 0:
+        return _mutation_not_found("event", event_id)
+    return jsonify({"success": True, "updated": cur.rowcount})
 
 
 @app.route("/api/events/<int:event_id>", methods=["DELETE"])
 def delete_event(event_id):
     with get_db() as conn:
-        conn.execute("DELETE FROM wedding_events WHERE id=?", (event_id,))
-    return jsonify({"success": True})
+        cur = conn.execute("DELETE FROM wedding_events WHERE id=?", (event_id,))
+    if cur.rowcount == 0:
+        return _mutation_not_found("event", event_id)
+    return jsonify({"success": True, "deleted": cur.rowcount})
 
 
 @app.route("/api/detect-conflicts")
@@ -778,15 +937,19 @@ def update_guest(guest_id):
         return jsonify({"error": "no fields to update"}), 400
     vals.append(guest_id)
     with get_db() as conn:
-        conn.execute(f"UPDATE guests SET {','.join(fields)} WHERE id=?", vals)
-    return jsonify({"success": True})
+        cur = conn.execute(f"UPDATE guests SET {','.join(fields)} WHERE id=?", vals)
+    if cur.rowcount == 0:
+        return _mutation_not_found("guest", guest_id)
+    return jsonify({"success": True, "updated": cur.rowcount})
 
 
 @app.route("/api/guests/<int:guest_id>", methods=["DELETE"])
 def delete_guest(guest_id):
     with get_db() as conn:
-        conn.execute("DELETE FROM guests WHERE id=?", (guest_id,))
-    return jsonify({"success": True})
+        cur = conn.execute("DELETE FROM guests WHERE id=?", (guest_id,))
+    if cur.rowcount == 0:
+        return _mutation_not_found("guest", guest_id)
+    return jsonify({"success": True, "deleted": cur.rowcount})
 
 
 @app.route("/api/guest-summary")
@@ -824,7 +987,17 @@ def get_notifications():
         unread = conn.execute(
             "SELECT COUNT(*) FROM notifications WHERE wedding_id=? AND read_status=0", (wedding_id,)
         ).fetchone()[0]
-    return jsonify({"notifications": [dict(r) for r in rows], "unread": unread})
+    notifications = []
+    for r in rows:
+        item = dict(r)
+        raw_target = item.get("action_target") or ""
+        if raw_target:
+            try:
+                item["action_target"] = json.loads(raw_target)
+            except Exception:
+                item["action_target"] = raw_target
+        notifications.append(item)
+    return jsonify({"notifications": notifications, "unread": unread})
 
 
 @app.route("/api/notifications", methods=["POST"])
@@ -837,9 +1010,10 @@ def create_notification():
         return jsonify({"error": "wedding_id and title required"}), 400
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO notifications (wedding_id, user_id, type, title, message, action_url) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO notifications (wedding_id, user_id, type, title, message, action_url, action_target) VALUES (?,?,?,?,?,?,?)",
             (wedding_id, data.get("user_id", ""), ntype, title,
-             data.get("message", ""), data.get("action_url", ""))
+             data.get("message", ""), data.get("action_url", ""),
+             json.dumps(data.get("action_target")) if data.get("action_target") is not None else "")
         )
     return jsonify({"success": True})
 
@@ -847,8 +1021,10 @@ def create_notification():
 @app.route("/api/notifications/<int:notif_id>/read", methods=["PUT"])
 def mark_notification_read(notif_id):
     with get_db() as conn:
-        conn.execute("UPDATE notifications SET read_status=1 WHERE id=?", (notif_id,))
-    return jsonify({"success": True})
+        cur = conn.execute("UPDATE notifications SET read_status=1 WHERE id=?", (notif_id,))
+    if cur.rowcount == 0:
+        return _mutation_not_found("notification", notif_id)
+    return jsonify({"success": True, "updated": cur.rowcount})
 
 
 @app.route("/api/notifications/read-all", methods=["PUT"])
@@ -857,9 +1033,950 @@ def mark_all_read():
     if not wedding_id:
         return jsonify({"error": "wedding_id required"}), 400
     with get_db() as conn:
-        conn.execute("UPDATE notifications SET read_status=1 WHERE wedding_id=?", (wedding_id,))
+        cur = conn.execute("UPDATE notifications SET read_status=1 WHERE wedding_id=?", (wedding_id,))
+    return jsonify({"success": True, "updated": cur.rowcount})
+
+
+def _ensure_default_announcement_channel(conn, wedding_id: str):
+    row = conn.execute(
+        "SELECT * FROM announcement_channels WHERE wedding_id=? AND is_default=1 ORDER BY id LIMIT 1",
+        (wedding_id,),
+    ).fetchone()
+    if row:
+        return row["id"]
+    conn.execute(
+        "INSERT INTO announcement_channels (wedding_id, name, is_default) VALUES (?,?,1)",
+        (wedding_id, "Announcements"),
+    )
+    return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+@app.route("/api/ai-actions/log", methods=["POST"])
+def create_ai_action_log():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO ai_action_logs (wedding_id, user_id, context, instruction, plan_json, result_json, status)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                wedding_id,
+                str(data.get("user_id", "")),
+                str(data.get("context", "")),
+                str(data.get("instruction", "")),
+                json.dumps(data.get("plan") or {}),
+                json.dumps(data.get("result") or {}),
+                str(data.get("status", "")),
+            ),
+        )
+        log_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return jsonify({"success": True, "id": log_id})
+
+
+@app.route("/api/ai-actions")
+def list_ai_action_logs():
+    wedding_id = request.args.get("wedding_id")
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM ai_action_logs WHERE wedding_id=? ORDER BY created_at DESC LIMIT 200",
+            (wedding_id,),
+        ).fetchall()
+    parsed = []
+    for row in rows:
+        item = dict(row)
+        for field in ["plan_json", "result_json"]:
+            try:
+                item[field] = json.loads(item.get(field) or "{}")
+            except Exception:
+                pass
+        parsed.append(item)
+    return jsonify(parsed)
+
+
+@app.route("/api/guests/import", methods=["POST"])
+def import_guests():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    rows = data.get("rows") or []
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    if not isinstance(rows, list):
+        return jsonify({"error": "rows must be an array"}), 400
+
+    created, updated, skipped = 0, 0, 0
+    errors = []
+
+    with get_db() as conn:
+        for idx, raw in enumerate(rows, start=1):
+            row = raw if isinstance(raw, dict) else {}
+            name = str(row.get("name", "")).strip()
+            email = str(row.get("email", "")).strip()
+            phone = str(row.get("phone", "")).strip()
+            if not name:
+                skipped += 1
+                errors.append({"row": idx, "error": "Missing name"})
+                continue
+
+            existing = None
+            if email:
+                existing = conn.execute(
+                    "SELECT id FROM guests WHERE wedding_id=? AND lower(email)=lower(?) LIMIT 1",
+                    (wedding_id, email),
+                ).fetchone()
+            if not existing and phone:
+                existing = conn.execute(
+                    "SELECT id FROM guests WHERE wedding_id=? AND name=? AND phone=? LIMIT 1",
+                    (wedding_id, name, phone),
+                ).fetchone()
+
+            payload = (
+                name,
+                email,
+                phone,
+                str(row.get("rsvp_status") or "pending"),
+                str(row.get("meal_preference") or ""),
+                int(row.get("plus_one") or 0),
+                row.get("table_number"),
+                str(row.get("group_name") or ""),
+                str(row.get("notes") or ""),
+            )
+
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE guests
+                    SET name=?, email=?, phone=?, rsvp_status=?, meal_preference=?, plus_one=?, table_number=?, group_name=?, notes=?
+                    WHERE id=?
+                    """,
+                    payload + (existing["id"],),
+                )
+                updated += 1
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO guests (wedding_id, name, email, phone, rsvp_status, meal_preference, plus_one, table_number, group_name, notes)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (wedding_id,) + payload,
+                )
+                created += 1
+
+    return jsonify({
+        "success": True,
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "errors": errors[:50],
+    })
+
+
+@app.route("/api/guest-invites/send", methods=["POST"])
+def send_guest_invites():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    guest_ids = data.get("guest_ids") or []
+    send_email = bool(data.get("send_email", True))
+
+    with get_db() as conn:
+        query = "SELECT * FROM guests WHERE wedding_id=?"
+        args = [wedding_id]
+        if isinstance(guest_ids, list) and guest_ids:
+            placeholders = ",".join(["?"] * len(guest_ids))
+            query += f" AND id IN ({placeholders})"
+            args.extend([int(gid) for gid in guest_ids])
+        guests = conn.execute(query, args).fetchall()
+        if not guests:
+            return jsonify({"error": "No guests found for invite dispatch"}), 404
+
+        channel_id = _ensure_default_announcement_channel(conn, wedding_id)
+        results = []
+        for g in guests:
+            token_row = conn.execute(
+                """
+                SELECT * FROM guest_invite_tokens
+                WHERE wedding_id=? AND guest_id=? AND status='active'
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (wedding_id, g["id"]),
+            ).fetchone()
+            token = token_row["token"] if token_row else secrets.token_urlsafe(24)
+            expires_at = (datetime.utcnow() + timedelta(days=30)).isoformat()
+            if token_row:
+                conn.execute(
+                    "UPDATE guest_invite_tokens SET expires_at=?, last_sent_at=datetime('now') WHERE id=?",
+                    (expires_at, token_row["id"]),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO guest_invite_tokens (wedding_id, guest_id, token, sent_to, expires_at, status, last_sent_at)
+                    VALUES (?,?,?,?,?,'active',datetime('now'))
+                    """,
+                    (wedding_id, g["id"], token, g["email"] or "", expires_at),
+                )
+
+            invite_link = f"{APP_BASE_URL}/guest/checkin/{token}"
+            email_result = {"sent": False, "reason": "email_skipped"}
+            if send_email and g["email"]:
+                body = (
+                    f"Hi {g['name']},\n\n"
+                    f"You are invited! Please use your RSVP/check-in link:\n{invite_link}\n\n"
+                    "This link is unique to you.\n"
+                )
+                email_result = _send_email(g["email"], "Wedding RSVP & Check-in Link", body)
+
+            results.append({
+                "guest_id": g["id"],
+                "name": g["name"],
+                "email": g["email"],
+                "invite_link": invite_link,
+                "email_result": email_result,
+            })
+
+        conn.execute(
+            """
+            INSERT INTO announcement_messages (channel_id, wedding_id, author_type, author_name, message, metadata_json)
+            VALUES (?,?,?,?,?,?)
+            """,
+            (
+                channel_id,
+                wedding_id,
+                "ai",
+                "AI Assistant",
+                f"Invitation links generated for {len(results)} guest(s).",
+                json.dumps({"type": "invite_dispatch", "count": len(results)}),
+            ),
+        )
+
+    return jsonify({"success": True, "results": results, "smtp_ready": _smtp_ready()})
+
+
+@app.route("/api/guest-self-checkin/<token>")
+def get_guest_self_checkin(token):
+    with get_db() as conn:
+        row = conn.execute(
+            """
+            SELECT git.*, g.name, g.email, g.phone, g.rsvp_status, g.meal_preference, g.plus_one, g.table_number, g.group_name, g.notes
+            FROM guest_invite_tokens git
+            JOIN guests g ON g.id = git.guest_id
+            WHERE git.token=? AND git.status='active'
+            ORDER BY git.created_at DESC LIMIT 1
+            """,
+            (token,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Invite token not found or expired"}), 404
+    item = dict(row)
+    return jsonify({
+        "wedding_id": item["wedding_id"],
+        "guest": {
+            "id": item["guest_id"],
+            "name": item["name"],
+            "email": item["email"],
+            "phone": item["phone"],
+            "rsvp_status": item["rsvp_status"],
+            "meal_preference": item["meal_preference"],
+            "plus_one": item["plus_one"],
+            "table_number": item["table_number"],
+            "group_name": item["group_name"],
+            "notes": item["notes"],
+        },
+    })
+
+
+@app.route("/api/guest-self-checkin/<token>", methods=["POST"])
+def submit_guest_self_checkin(token):
+    data = request.get_json() or {}
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM guest_invite_tokens WHERE token=? AND status='active' ORDER BY created_at DESC LIMIT 1",
+            (token,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Invite token not found or expired"}), 404
+        guest_id = row["guest_id"]
+        patch = {}
+        for f in ["name", "email", "phone", "rsvp_status", "meal_preference", "plus_one", "table_number", "group_name", "notes"]:
+            if f in data:
+                patch[f] = data[f]
+        if patch:
+            fields = [f"{k}=?" for k in patch.keys()]
+            vals = list(patch.values()) + [guest_id]
+            conn.execute(f"UPDATE guests SET {','.join(fields)} WHERE id=?", vals)
+        conn.execute(
+            "INSERT INTO guest_checkins (wedding_id, guest_id, token, submitted_json) VALUES (?,?,?,?)",
+            (row["wedding_id"], guest_id, token, json.dumps(data)),
+        )
+        conn.execute("UPDATE guest_invite_tokens SET status='used' WHERE id=?", (row["id"],))
     return jsonify({"success": True})
 
+
+@app.route("/guest/checkin/<token>")
+def guest_checkin_page(token):
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guest Check-in</title>
+  <style>
+    body {{ font-family: Inter, Arial, sans-serif; margin: 0; background: #f6f2fb; color: #1f1730; }}
+    .wrap {{ max-width: 620px; margin: 36px auto; background: #fff; border-radius: 14px; padding: 22px; box-shadow: 0 6px 28px rgba(63,39,99,.12); }}
+    h1 {{ margin-top: 0; font-size: 1.35rem; }}
+    label {{ display:block; margin-top: 10px; font-size: .85rem; font-weight: 600; }}
+    input, select, textarea {{ width: 100%; margin-top: 6px; padding: 10px; border: 1px solid #d7cde8; border-radius: 10px; font: inherit; }}
+    button {{ margin-top: 14px; border: 0; background: #6f49b6; color: #fff; padding: 10px 16px; border-radius: 999px; cursor: pointer; font-weight: 600; }}
+    .ok {{ color: #198754; font-weight: 700; margin-top: 10px; }}
+    .err {{ color: #b23b4f; margin-top: 10px; }}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Wedding Guest RSVP Check-in</h1>
+    <p>Use this form to confirm your latest details.</p>
+    <form id="f">
+      <label>Name<input id="name" /></label>
+      <label>Email<input id="email" type="email" /></label>
+      <label>Phone<input id="phone" /></label>
+      <label>RSVP
+        <select id="rsvp_status"><option value="pending">Pending</option><option value="attending">Attending</option><option value="declined">Declined</option><option value="maybe">Maybe</option></select>
+      </label>
+      <label>Meal Preference<input id="meal_preference" placeholder="Vegetarian / Vegan / etc" /></label>
+      <label>Plus One
+        <select id="plus_one"><option value="0">No</option><option value="1">Yes</option></select>
+      </label>
+      <label>Table Number<input id="table_number" type="number" min="1" /></label>
+      <label>Group Name<input id="group_name" /></label>
+      <label>Notes<textarea id="notes" rows="3"></textarea></label>
+      <button type="submit">Save Check-in</button>
+    </form>
+    <p id="msg"></p>
+  </div>
+  <script>
+    const token = {json.dumps(token)};
+    const msg = document.getElementById("msg");
+    fetch(`/api/guest-self-checkin/${{token}}`).then(r => r.json()).then(d => {{
+      if (d.error) {{ msg.className='err'; msg.textContent=d.error; return; }}
+      const g = d.guest || {{}};
+      ["name","email","phone","rsvp_status","meal_preference","plus_one","table_number","group_name","notes"].forEach(k => {{
+        const el = document.getElementById(k); if (!el) return;
+        if (g[k] !== undefined && g[k] !== null) el.value = g[k];
+      }});
+    }}).catch(() => {{ msg.className='err'; msg.textContent='Failed to load invite details.'; }});
+    document.getElementById("f").addEventListener("submit", async (e) => {{
+      e.preventDefault();
+      const payload = {{}};
+      ["name","email","phone","rsvp_status","meal_preference","plus_one","table_number","group_name","notes"].forEach(k => payload[k]=document.getElementById(k).value);
+      payload.plus_one = parseInt(payload.plus_one || "0", 10) || 0;
+      payload.table_number = payload.table_number ? parseInt(payload.table_number, 10) : null;
+      const res = await fetch(`/api/guest-self-checkin/${{token}}`, {{ method: "POST", headers: {{ "Content-Type":"application/json" }}, body: JSON.stringify(payload) }});
+      const out = await res.json();
+      if (res.ok) {{ msg.className='ok'; msg.textContent='Saved. Thank you!'; }}
+      else {{ msg.className='err'; msg.textContent = out.error || 'Save failed.'; }}
+    }});
+  </script>
+</body>
+</html>"""
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/api/announcements/channels")
+def list_announcement_channels():
+    wedding_id = request.args.get("wedding_id")
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    with get_db() as conn:
+        _ensure_default_announcement_channel(conn, wedding_id)
+        rows = conn.execute(
+            "SELECT * FROM announcement_channels WHERE wedding_id=? ORDER BY is_default DESC, id ASC",
+            (wedding_id,),
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/announcements/channels", methods=["POST"])
+def create_announcement_channel():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    name = (data.get("name") or "").strip()
+    if not wedding_id or not name:
+        return jsonify({"error": "wedding_id and name required"}), 400
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO announcement_channels (wedding_id, name, is_default) VALUES (?,?,0)",
+            (wedding_id, name),
+        )
+        channel_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return jsonify({"success": True, "id": channel_id})
+
+
+@app.route("/api/announcements/messages")
+def list_announcement_messages():
+    wedding_id = request.args.get("wedding_id")
+    channel_id = request.args.get("channel_id")
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    with get_db() as conn:
+        if channel_id:
+            rows = conn.execute(
+                "SELECT * FROM announcement_messages WHERE wedding_id=? AND channel_id=? ORDER BY created_at DESC LIMIT 200",
+                (wedding_id, channel_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM announcement_messages WHERE wedding_id=? ORDER BY created_at DESC LIMIT 200",
+                (wedding_id,),
+            ).fetchall()
+    out = []
+    for r in rows:
+        item = dict(r)
+        try:
+            item["metadata_json"] = json.loads(item.get("metadata_json") or "{}")
+        except Exception:
+            pass
+        out.append(item)
+    return jsonify(out)
+
+
+@app.route("/api/announcements/messages", methods=["POST"])
+def create_announcement_message():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    message = (data.get("message") or "").strip()
+    if not wedding_id or not message:
+        return jsonify({"error": "wedding_id and message required"}), 400
+    with get_db() as conn:
+        channel_id = data.get("channel_id") or _ensure_default_announcement_channel(conn, wedding_id)
+        conn.execute(
+            """
+            INSERT INTO announcement_messages (channel_id, wedding_id, author_type, author_name, message, metadata_json)
+            VALUES (?,?,?,?,?,?)
+            """,
+            (
+                channel_id,
+                wedding_id,
+                data.get("author_type", "user"),
+                data.get("author_name", ""),
+                message,
+                json.dumps(data.get("metadata") or {}),
+            ),
+        )
+        msg_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return jsonify({"success": True, "id": msg_id})
+
+
+@app.route("/api/wedding-sites")
+def get_wedding_sites():
+    wedding_id = request.args.get("wedding_id")
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM wedding_sites WHERE wedding_id=? ORDER BY updated_at DESC",
+            (wedding_id,),
+        ).fetchall()
+    out = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["content_json"] = json.loads(item.get("content_json") or "{}")
+        except Exception:
+            pass
+        out.append(item)
+    return jsonify(out)
+
+
+@app.route("/api/wedding-sites", methods=["POST"])
+def upsert_wedding_site():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    title = str(data.get("title") or "Wedding Website").strip()
+    theme = str(data.get("theme") or "classic").strip()
+    content_json = json.dumps(data.get("content") or {})
+    site_id = data.get("id")
+
+    with get_db() as conn:
+        if site_id:
+            cur = conn.execute(
+                "UPDATE wedding_sites SET title=?, theme=?, content_json=?, updated_at=datetime('now') WHERE id=?",
+                (title, theme, content_json, site_id),
+            )
+            if cur.rowcount == 0:
+                return _mutation_not_found("wedding_site", site_id)
+        else:
+            conn.execute(
+                "INSERT INTO wedding_sites (wedding_id, title, theme, content_json, status) VALUES (?,?,?,?, 'draft')",
+                (wedding_id, title, theme, content_json),
+            )
+            site_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return jsonify({"success": True, "id": site_id})
+
+
+@app.route("/api/wedding-sites/generate", methods=["POST"])
+def generate_wedding_site():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    instruction = str(data.get("prompt") or "Generate a polished wedding website copy package.")
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+
+    structured = _build_structured_context(wedding_id)
+    recent_chat = _build_recent_chat_context(wedding_id)
+    default_payload = {
+        "title": "Our Wedding",
+        "hero_subtitle": "We are excited to celebrate with you.",
+        "story": "Our story is still being finalized.",
+        "schedule": [],
+        "travel": "Travel and stay details will be shared soon.",
+        "faq": [],
+    }
+
+    if not openai_client:
+        return jsonify({"success": True, "content": default_payload, "source": "fallback"})
+
+    prompt = f"""
+You are writing copy for a professional wedding website.
+Return ONLY a JSON object with keys:
+title, hero_subtitle, story, schedule (array of objects with time and label), travel, faq (array of objects with q and a)
+
+Wedding data:
+{structured or "No structured data"}
+
+Recent chat/doc context:
+{recent_chat or "No recent chat or docs"}
+
+User instruction:
+{instruction}
+"""
+    try:
+        completion = openai_client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": "Return only valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=1200,
+            temperature=0.35,
+        )
+        raw = (completion.choices[0].message.content or "").strip()
+        content = _parse_json_from_model(raw)
+        if not isinstance(content, dict):
+            content = default_payload
+        return jsonify({"success": True, "content": content, "source": "ai"})
+    except Exception:
+        return jsonify({"success": True, "content": default_payload, "source": "fallback"})
+
+
+@app.route("/api/wedding-sites/<int:site_id>/publish", methods=["PUT"])
+def publish_wedding_site(site_id):
+    data = request.get_json() or {}
+    requested_slug = (data.get("slug") or "").strip().lower()
+    if requested_slug:
+        requested_slug = re.sub(r"[^a-z0-9-]+", "-", requested_slug).strip("-")
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM wedding_sites WHERE id=?", (site_id,)).fetchone()
+        if not row:
+            return _mutation_not_found("wedding_site", site_id)
+        slug = requested_slug or row["slug"] or f"wedding-{site_id}"
+        suffix = 1
+        base_slug = slug
+        while True:
+            taken = conn.execute("SELECT id FROM wedding_sites WHERE slug=? AND id!=?", (slug, site_id)).fetchone()
+            if not taken:
+                break
+            suffix += 1
+            slug = f"{base_slug}-{suffix}"
+        conn.execute(
+            "UPDATE wedding_sites SET slug=?, status='published', published_at=datetime('now'), updated_at=datetime('now') WHERE id=?",
+            (slug, site_id),
+        )
+    return jsonify({"success": True, "slug": slug, "url": f"{APP_BASE_URL}/w/{slug}"})
+
+
+@app.route("/w/<slug>")
+def render_wedding_site(slug):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM wedding_sites WHERE slug=? AND status='published' ORDER BY updated_at DESC LIMIT 1",
+            (slug,),
+        ).fetchone()
+    if not row:
+        return "<h1>Wedding site not found</h1>", 404
+    try:
+        content = json.loads(row["content_json"] or "{}")
+    except Exception:
+        content = {}
+    title = html_escape(content.get("title") or row["title"] or "Wedding")
+    subtitle = html_escape(content.get("hero_subtitle") or "")
+    story = html_escape(content.get("story") or "")
+    travel = html_escape(content.get("travel") or "")
+    schedule = content.get("schedule") or []
+    faq = content.get("faq") or []
+    schedule_html = "".join(
+        f"<li><strong>{html_escape(str(item.get('time', '')))}</strong> — {html_escape(str(item.get('label', '')))}</li>"
+        for item in schedule if isinstance(item, dict)
+    )
+    faq_html = "".join(
+        f"<li><strong>{html_escape(str(item.get('q', '')))}</strong><br/>{html_escape(str(item.get('a', '')))}</li>"
+        for item in faq if isinstance(item, dict)
+    )
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <style>
+    body {{ margin:0; font-family: Inter, Arial, sans-serif; color:#20182e; background:#f7f3fd; }}
+    .hero {{ padding: 56px 20px 34px; text-align:center; background: linear-gradient(145deg,#f8f2ff,#fff6f9); }}
+    .hero h1 {{ margin:0; font-size: clamp(2rem, 5vw, 3.2rem); }}
+    .hero p {{ margin: 8px 0 0; color:#5f4f78; }}
+    .wrap {{ max-width: 920px; margin: 0 auto; padding: 24px 18px 60px; }}
+    section {{ background:#fff; border:1px solid #e8dff6; border-radius:14px; padding:20px; margin-top:14px; }}
+    h2 {{ margin:0 0 8px; font-size:1.1rem; }}
+    ul {{ margin:0; padding-left:18px; line-height:1.6; }}
+  </style>
+</head>
+<body>
+  <div class="hero"><h1>{title}</h1><p>{subtitle}</p></div>
+  <div class="wrap">
+    <section><h2>Our Story</h2><p>{story}</p></section>
+    <section><h2>Schedule</h2><ul>{schedule_html or '<li>Schedule coming soon.</li>'}</ul></section>
+    <section><h2>Travel & Stay</h2><p>{travel}</p></section>
+    <section><h2>FAQ</h2><ul>{faq_html or '<li>FAQ coming soon.</li>'}</ul></section>
+  </div>
+</body>
+</html>"""
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/api/visual-plan-items")
+def get_visual_plan_items():
+    wedding_id = request.args.get("wedding_id")
+    item_type = request.args.get("item_type", "")
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    with get_db() as conn:
+        if item_type:
+            rows = conn.execute(
+                "SELECT * FROM visual_plan_items WHERE wedding_id=? AND item_type=? ORDER BY id DESC",
+                (wedding_id, item_type),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM visual_plan_items WHERE wedding_id=? ORDER BY id DESC",
+                (wedding_id,),
+            ).fetchall()
+    out = []
+    for r in rows:
+        item = dict(r)
+        for field in ["assigned_guests_json", "details_json"]:
+            try:
+                item[field] = json.loads(item.get(field) or "[]")
+            except Exception:
+                pass
+        out.append(item)
+    return jsonify(out)
+
+
+@app.route("/api/visual-plan-items", methods=["POST"])
+def create_visual_plan_item():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    item_type = (data.get("item_type") or "").strip()
+    label = (data.get("label") or "").strip()
+    if not wedding_id or item_type not in {"seat", "stay"} or not label:
+        return jsonify({"error": "wedding_id, item_type(seat|stay), label required"}), 400
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO visual_plan_items
+            (wedding_id, item_type, label, lat, lng, table_number, capacity, assigned_guests_json, details_json, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))
+            """,
+            (
+                wedding_id,
+                item_type,
+                label,
+                data.get("lat"),
+                data.get("lng"),
+                data.get("table_number"),
+                data.get("capacity"),
+                json.dumps(data.get("assigned_guests") or []),
+                json.dumps(data.get("details") or {}),
+            ),
+        )
+        item_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return jsonify({"success": True, "id": item_id})
+
+
+@app.route("/api/visual-plan-items/<int:item_id>", methods=["PUT"])
+def update_visual_plan_item(item_id):
+    data = request.get_json() or {}
+    fields, vals = [], []
+    mapping = {
+        "label": "label",
+        "lat": "lat",
+        "lng": "lng",
+        "table_number": "table_number",
+        "capacity": "capacity",
+    }
+    for src, dbf in mapping.items():
+        if src in data:
+            fields.append(f"{dbf}=?")
+            vals.append(data[src])
+    if "assigned_guests" in data:
+        fields.append("assigned_guests_json=?")
+        vals.append(json.dumps(data.get("assigned_guests") or []))
+    if "details" in data:
+        fields.append("details_json=?")
+        vals.append(json.dumps(data.get("details") or {}))
+    fields.append("updated_at=datetime('now')")
+    vals.append(item_id)
+    with get_db() as conn:
+        cur = conn.execute(f"UPDATE visual_plan_items SET {','.join(fields)} WHERE id=?", vals)
+    if cur.rowcount == 0:
+        return _mutation_not_found("visual_plan_item", item_id)
+    return jsonify({"success": True, "updated": cur.rowcount})
+
+
+@app.route("/api/visual-plan-items/<int:item_id>", methods=["DELETE"])
+def delete_visual_plan_item(item_id):
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM visual_plan_items WHERE id=?", (item_id,))
+    if cur.rowcount == 0:
+        return _mutation_not_found("visual_plan_item", item_id)
+    return jsonify({"success": True, "deleted": cur.rowcount})
+
+
+@app.route("/api/cards")
+def list_cards():
+    wedding_id = request.args.get("wedding_id")
+    if not wedding_id:
+        return jsonify({"error": "wedding_id required"}), 400
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM invitation_cards WHERE wedding_id=? ORDER BY created_at DESC",
+            (wedding_id,),
+        ).fetchall()
+    out = []
+    for r in rows:
+        item = dict(r)
+        try:
+            item["content_json"] = json.loads(item.get("content_json") or "{}")
+        except Exception:
+            pass
+        out.append(item)
+    return jsonify(out)
+
+
+@app.route("/api/cards/generate", methods=["POST"])
+def generate_card_content():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    prompt = str(data.get("prompt") or "").strip()
+    preferred_theme = str(data.get("theme") or "classic").strip().lower()
+    preferred_title = str(data.get("title") or "").strip()
+
+    default_content = {
+        "title": preferred_title or "Wedding Invitation",
+        "subtitle": "Together with our families",
+        "body": "Join us as we celebrate our wedding day.",
+        "theme": preferred_theme if preferred_theme in {"classic", "modern", "royal", "minimal"} else "classic",
+        "palette": ["#fef6f9", "#f2dded"],
+    }
+
+    if not openai_client:
+        return jsonify({"success": True, "content": default_content, "source": "fallback"})
+
+    structured = _build_structured_context(wedding_id) if wedding_id else ""
+    recent_chat = _build_recent_chat_context(wedding_id) if wedding_id else ""
+    prompt_text = f"""
+Create polished invitation card copy for a wedding planning app.
+Return ONLY JSON with keys:
+title, subtitle, body, theme (classic|modern|royal|minimal), palette (array of 2 hex colors).
+
+User prompt:
+{prompt or "Create an elegant wedding invitation."}
+
+Preferred title:
+{preferred_title or "Not specified"}
+
+Preferred theme:
+{preferred_theme}
+
+Structured context:
+{structured or "No structured data"}
+
+Recent chat/doc context:
+{recent_chat or "No recent context"}
+"""
+    try:
+        completion = openai_client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": "Return only valid JSON."},
+                {"role": "user", "content": prompt_text},
+            ],
+            max_tokens=600,
+            temperature=0.4,
+        )
+        raw = (completion.choices[0].message.content or "").strip()
+        content = _parse_json_from_model(raw)
+        if not isinstance(content, dict):
+            content = default_content
+        theme = str(content.get("theme") or default_content["theme"]).lower()
+        if theme not in {"classic", "modern", "royal", "minimal"}:
+            theme = default_content["theme"]
+        palette = content.get("palette")
+        if not isinstance(palette, list) or len(palette) < 2:
+            palette = default_content["palette"]
+        content["theme"] = theme
+        content["palette"] = [str(palette[0]), str(palette[1])]
+        content["title"] = str(content.get("title") or default_content["title"]).strip()
+        content["subtitle"] = str(content.get("subtitle") or default_content["subtitle"]).strip()
+        content["body"] = str(content.get("body") or default_content["body"]).strip()
+        return jsonify({"success": True, "content": content, "source": "ai"})
+    except Exception:
+        return jsonify({"success": True, "content": default_content, "source": "fallback"})
+
+
+@app.route("/api/cards", methods=["POST"])
+def create_card():
+    data = request.get_json() or {}
+    wedding_id = (data.get("wedding_id") or "").strip()
+    title = (data.get("title") or "").strip()
+    if not wedding_id or not title:
+        return jsonify({"error": "wedding_id and title required"}), 400
+    with get_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO invitation_cards (wedding_id, title, prompt, theme, content_json, created_by)
+            VALUES (?,?,?,?,?,?)
+            """,
+            (
+                wedding_id,
+                title,
+                str(data.get("prompt") or ""),
+                str(data.get("theme") or "classic"),
+                json.dumps(data.get("content") or {}),
+                str(data.get("created_by") or ""),
+            ),
+        )
+        card_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return jsonify({"success": True, "id": card_id})
+
+
+@app.route("/api/ai/task-candidates", methods=["POST"])
+def ai_task_candidates():
+    data = request.get_json() or {}
+    text = (data.get("text") or "").strip()
+    wedding_id = (data.get("wedding_id") or "").strip()
+    if not text:
+        return jsonify({"candidates": []})
+
+    def infer_due_date_from_text(raw_text: str) -> str:
+        due_match = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", raw_text)
+        if due_match:
+            return due_match.group(1)
+        lower = raw_text.lower()
+        today = datetime.now().date()
+        if "tomorrow" in lower:
+            return (today + timedelta(days=1)).isoformat()
+        if "next week" in lower:
+            return (today + timedelta(days=7)).isoformat()
+        if "this week" in lower:
+            return (today + timedelta(days=3)).isoformat()
+        weekday_map = {
+            "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+            "friday": 4, "saturday": 5, "sunday": 6,
+        }
+        current = today.weekday()
+        for name, target in weekday_map.items():
+            if re.search(rf"\b{name}\b", lower):
+                delta = (target - current) % 7
+                if delta == 0:
+                    delta = 7
+                return (today + timedelta(days=delta)).isoformat()
+        return ""
+
+    fallback = []
+    due_guess = infer_due_date_from_text(text)
+    has_general_action = re.search(r"\b(book|finali[sz]e|confirm|send|review|arrange|schedule|create)\b", text, flags=re.I)
+    has_meeting_intent = re.search(r"\b(meet|meeting|call|sync|catch[- ]?up|go through|walk through)\b", text, flags=re.I)
+    asks_for_time = re.search(r"\b(when|what time|good time|available|tomorrow|next week|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", text, flags=re.I)
+
+    if has_meeting_intent and asks_for_time:
+        fallback.append({
+            "title": "Schedule vendor meeting",
+            "description": text,
+            "due_date": due_guess,
+            "priority": "high",
+            "assigned_to": "",
+            "category": "Vendors",
+            "confidence": 0.82,
+        })
+
+    if has_general_action:
+        fallback.append({
+            "title": text[:80],
+            "description": text,
+            "due_date": due_guess,
+            "priority": "medium",
+            "assigned_to": "",
+            "category": "Planning",
+            "confidence": 0.55,
+        })
+
+    if not openai_client:
+        return jsonify({"candidates": fallback})
+
+    structured = _build_structured_context(wedding_id) if wedding_id else ""
+    prompt = f"""
+Extract 0-3 actionable task candidates from this chat message.
+Return ONLY a JSON array. Each object:
+{{"title":"...","description":"...","due_date":"YYYY-MM-DD or ''","priority":"low|medium|high|urgent","assigned_to":"...","category":"...","confidence":0-1}}
+
+Message:
+{text}
+
+Wedding context:
+{structured or "No structured data"}
+
+Rules:
+- Always detect scheduling intent as a task when the message asks to meet/call/sync or asks "what time"/"good time to meet".
+- Prefer concise actionable task titles.
+"""
+    try:
+        completion = openai_client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": "Return only valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=500,
+            temperature=0.1,
+        )
+        parsed = _parse_json_from_model((completion.choices[0].message.content or "").strip())
+        if isinstance(parsed, list):
+            cands = [c for c in parsed if isinstance(c, dict)]
+        elif isinstance(parsed, dict):
+            cands = [parsed]
+        else:
+            cands = []
+        return jsonify({"candidates": cands[:3] or fallback})
+    except Exception:
+        return jsonify({"candidates": fallback})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # AI QUERY ENDPOINTS (original + enhanced with structured data)
@@ -972,6 +2089,51 @@ def _build_structured_context(wedding_id):
         pass
 
     return "\n\n".join(context_parts)
+
+
+def _build_recent_chat_context(wedding_id, limit=25):
+    """Collect recent chat and document signals for content-generation tasks."""
+    if not wedding_id:
+        return ""
+    try:
+        with get_db() as conn:
+            cohort = conn.execute(
+                "SELECT id FROM cohorts WHERE lower(name)=lower(?) ORDER BY id DESC LIMIT 1",
+                (wedding_id,),
+            ).fetchone()
+            if not cohort:
+                return ""
+            cohort_id = cohort["id"]
+            rows = conn.execute(
+                """
+                SELECT sender_type, content, created_at
+                FROM messages
+                WHERE cohort_id=?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (cohort_id, limit),
+            ).fetchall()
+            docs = conn.execute(
+                "SELECT filename, created_at FROM documents WHERE cohort_id=? ORDER BY id DESC LIMIT 8",
+                (cohort_id,),
+            ).fetchall()
+        lines = []
+        if rows:
+            lines.append("RECENT CHAT CONTEXT:")
+            for r in reversed(rows):
+                text = re.sub(r"\s+", " ", str(r["content"] or "")).strip()
+                if not text:
+                    continue
+                role = "AI" if str(r["sender_type"]) == "ai" else "User"
+                lines.append(f"  - {role}: {text[:240]}")
+        if docs:
+            lines.append("UPLOADED DOCUMENTS:")
+            for d in docs:
+                lines.append(f"  - {d['filename']}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
 
 
 def _build_system_prompt():
@@ -1214,11 +2376,13 @@ Allowed action types:
 - remove_recent_expenses: {"type":"remove_recent_expenses","budget_categories":[...],"count":number,"until_within_budget":true|false}
 - notify_group_chat: {"type":"notify_group_chat","message":"...","group_name":"optional","vendor_names":[...]}
 - notify_vendor_chat: {"type":"notify_vendor_chat","message":"...","vendor_names":[...]}
+- send_guest_invites: {"type":"send_guest_invites","guest_ids":[...],"send_email":true|false}
+- post_announcement: {"type":"post_announcement","message":"...","metadata":{...}}
 - create_task: {"type":"create_task","title":"...","description":"...","due_date":"YYYY-MM-DD","priority":"low|medium|high|urgent","assigned_to":"...","category":"..."}
 - update_task: {"type":"update_task","task_id":number,"status":"pending|in_progress|completed|overdue","due_date":"YYYY-MM-DD","assigned_to":"..."}
 - extend_overdue_tasks: {"type":"extend_overdue_tasks","days":number,"task_ids":[...]}
 - reallocate_budget: {"type":"reallocate_budget","from_category":"...","to_category":"...","amount":number}
-- switch_tab: {"type":"switch_tab","tab":"chat|budget|tasks|guests|discover"}
+- switch_tab: {"type":"switch_tab","tab":"chat|budget|tasks|guests|discover|website|plans|cards|announcements"}
 - generate_document: {"type":"generate_document","prompt":"...","output_format":"pdf|docx"}
 
 Rules:
