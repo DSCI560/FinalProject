@@ -1,2 +1,5 @@
 .env
 /backend/.env
+/backend/node_modules
+/backend/chroma_data
+/backend/venv
