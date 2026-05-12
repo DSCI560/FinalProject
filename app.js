@@ -1037,7 +1037,17 @@ function addDiscoveredVendor(v) {
 }
 
 // ═══ SEATING CHART ════════════════════════════════════════════════════════════
-const seatingState = { guests: [], tables: 4, seatsPerTable: 8, selected: null };
+const seatingState = {
+  guests: [], tables: 4, seatsPerTable: 8, selected: null,
+  tableNames: {},  // { idx: "Custom Name" }
+  tableSizes: {}   // { idx: overrideCount }
+};
+
+const TAG_COLORS = { veg:"#5E9978", vegan:"#2D7A52", gf:"#D4935A", child:"#6B9FD4", vip:"#C1A775" };
+const TAG_LABELS = { veg:"Vegetarian", vegan:"Vegan", gf:"Gluten-free", child:"Child", vip:"VIP" };
+
+function tableSeats(t) { return seatingState.tableSizes[t] ?? seatingState.seatsPerTable; }
+function tableName(t)  { return seatingState.tableNames[t] || `Table ${t + 1}`; }
 
 function renderSeating() { renderUnassigned(); renderTables(); updateSeatingStats(); }
 
@@ -1045,36 +1055,84 @@ function renderUnassigned() {
   const container = document.getElementById("c-guest-unassigned");
   const unassigned = seatingState.guests.filter(g => g.tableId === null);
   container.innerHTML = "";
-  if (!unassigned.length) { container.innerHTML = '<p class="muted sm" style="padding:6px 0">All guests seated!</p>'; return; }
+  if (!unassigned.length) { container.innerHTML = '<p class="muted sm" style="padding:6px 0">All guests seated! ✦</p>'; return; }
+  if (seatingState.selected) {
+    const hint = document.createElement("p");
+    hint.className = "assign-hint";
+    hint.textContent = "Click an empty seat ○ on any table to assign";
+    container.appendChild(hint);
+  }
   unassigned.forEach(g => {
     const chip = document.createElement("div");
     chip.className = "guest-chip" + (seatingState.selected === g.id ? " selected" : "");
-    chip.textContent = g.name;
     chip.onclick = () => { seatingState.selected = seatingState.selected === g.id ? null : g.id; renderSeating(); };
-    const del = document.createElement("button");
-    del.className = "guest-chip-del"; del.textContent = "\xd7";
-    del.onclick = e => { e.stopPropagation(); seatingState.guests = seatingState.guests.filter(x => x.id !== g.id); renderSeating(); };
+    if (g.tag) {
+      const dot = document.createElement("span");
+      dot.className = "guest-tag-dot"; dot.style.background = TAG_COLORS[g.tag] || "#ccc"; dot.title = TAG_LABELS[g.tag] || g.tag;
+      chip.appendChild(dot);
+    }
+    const nameSpan = document.createElement("span"); nameSpan.textContent = g.name; chip.appendChild(nameSpan);
+    const del = document.createElement("button"); del.className = "guest-chip-del"; del.textContent = "\xd7";
+    del.onclick = e => { e.stopPropagation(); seatingState.guests = seatingState.guests.filter(x => x.id !== g.id); if (seatingState.selected === g.id) seatingState.selected = null; renderSeating(); };
     chip.appendChild(del); container.appendChild(chip);
   });
 }
 
 function renderTables() {
   const grid = document.getElementById("c-tables-grid"); grid.innerHTML = "";
+  const selGuest = seatingState.selected ? seatingState.guests.find(g => g.id === seatingState.selected) : null;
+
   for (let t = 0; t < seatingState.tables; t++) {
+    const N = tableSeats(t);
+    const count = seatingState.guests.filter(g => g.tableId === t).length;
+    const name  = tableName(t);
+
     const tableEl = document.createElement("div");
     tableEl.className = "seating-table-card";
-    tableEl.style.cursor = "pointer";
-    const count = seatingState.guests.filter(g => g.tableId === t).length;
-    tableEl.innerHTML = `<div class="seating-table-header"><span>Table ${t + 1}</span><div class="seating-table-header-right"><span class="muted sm">${count}/${seatingState.seatsPerTable}</span><span class="seating-open-hint">Edit ›</span></div></div><div class="seating-seats" id="c-tbl-${t}"></div>`;
-    const seatsEl = tableEl.querySelector(".seating-seats");
-    for (let s = 0; s < seatingState.seatsPerTable; s++) {
-      const seat = document.createElement("div");
+
+    // Header
+    const hdr = document.createElement("div"); hdr.className = "seating-table-header";
+    hdr.innerHTML = `<span>${esc(name)}</span><div class="seating-table-header-right"><span class="muted sm">${count}/${N}</span><span class="seating-open-hint">Edit ›</span></div>`;
+    tableEl.appendChild(hdr);
+
+    // Circular visual
+    const size = 180, seatD = 26, orbit = size/2 - seatD/2 - 6;
+    const wrap = document.createElement("div");
+    wrap.className = "table-visual-wrap";
+    wrap.style.cssText = `width:${size}px;height:${size}px`;
+
+    const surface = document.createElement("div"); surface.className = "table-visual-surface";
+    const sw = Math.round(size * 0.4), sh = sw;
+    surface.style.cssText = `width:${sw}px;height:${sh}px`;
+    surface.innerHTML = `<span class="table-surface-label">${count > 0 ? count+"/"+N : "✦"}</span>`;
+    wrap.appendChild(surface);
+
+    for (let s = 0; s < N; s++) {
+      const angle = (2 * Math.PI * s / N) - Math.PI / 2;
+      const cx = size/2 + orbit * Math.cos(angle), cy = size/2 + orbit * Math.sin(angle);
       const guest = seatingState.guests.find(g => g.tableId === t && g.seat === s);
-      seat.className = "seating-seat " + (guest ? "filled" : "empty");
-      seat.textContent = guest ? guest.name.split(" ")[0] : "+";
-      seat.title = guest ? guest.name : "Click table to add guests";
-      seatsEl.appendChild(seat);
+      const seat = document.createElement("div");
+      seat.className = "seating-seat-round " + (guest ? "filled" : "empty");
+      seat.style.cssText = `left:${cx - seatD/2}px;top:${cy - seatD/2}px;width:${seatD}px;height:${seatD}px`;
+      if (guest) {
+        seat.textContent = guest.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+        seat.title = guest.name + (guest.tag ? ` · ${TAG_LABELS[guest.tag]}` : "");
+        if (guest.tag) seat.style.borderColor = TAG_COLORS[guest.tag];
+      } else {
+        seat.title = selGuest ? `Assign ${selGuest.name} here` : "Open table to manage seats";
+        if (selGuest) {
+          seat.classList.add("assignable");
+          seat.addEventListener("click", e => {
+            e.stopPropagation();
+            selGuest.tableId = t; selGuest.seat = s; seatingState.selected = null; renderSeating();
+          });
+        } else {
+          seat.addEventListener("click", e => { e.stopPropagation(); openTableModal(t); });
+        }
+      }
+      wrap.appendChild(seat);
     }
+    tableEl.appendChild(wrap);
     tableEl.onclick = () => openTableModal(t);
     grid.appendChild(tableEl);
   }
@@ -1085,49 +1143,52 @@ let modalTableIndex = null;
 
 function openTableModal(tableIdx) {
   modalTableIndex = tableIdx;
-  document.getElementById("c-modal-table-title").textContent = `Table ${tableIdx + 1}`;
+  const inp = document.getElementById("c-modal-title-input");
+  inp.value = seatingState.tableNames[tableIdx] || "";
+  inp.placeholder = `Table ${tableIdx + 1}`;
+  document.getElementById("c-modal-seats-val").textContent = tableSeats(tableIdx);
   renderModalSeats();
   document.getElementById("c-seating-modal-overlay").classList.remove("hidden");
-  // Focus the first empty input
-  setTimeout(() => {
-    const first = document.querySelector(".modal-seat-input:placeholder-shown");
-    if (first) first.focus();
-  }, 60);
+  setTimeout(() => { const first = document.querySelector(".modal-seat-input:placeholder-shown"); if (first) first.focus(); }, 60);
 }
 
 function renderModalSeats() {
   const body = document.getElementById("c-seating-modal-seats");
   const t = modalTableIndex;
   body.innerHTML = "";
-  for (let s = 0; s < seatingState.seatsPerTable; s++) {
+  for (let s = 0; s < tableSeats(t); s++) {
     const guest = seatingState.guests.find(g => g.tableId === t && g.seat === s);
-    const row = document.createElement("div");
-    row.className = "modal-seat-row";
-    row.innerHTML = `<span class="modal-seat-num">${s + 1}</span><input class="modal-seat-input" type="text" placeholder="Guest name…" value="${guest ? esc(guest.name) : ""}"><button class="modal-seat-clear ${guest ? "" : "hidden"}" title="Remove">&times;</button>`;
-    const input = row.querySelector(".modal-seat-input");
-    const clearBtn = row.querySelector(".modal-seat-clear");
+    const row = document.createElement("div"); row.className = "modal-seat-row";
+
+    const num = document.createElement("span"); num.className = "modal-seat-num"; num.textContent = s + 1;
+
+    const input = document.createElement("input");
+    input.className = "modal-seat-input"; input.type = "text"; input.placeholder = "Guest name…"; input.value = guest ? guest.name : "";
+
+    const tagSel = document.createElement("select");
+    tagSel.className = "modal-seat-tag"; tagSel.disabled = !guest; tagSel.title = "Tag";
+    [["","—"],["veg","Veg"],["vegan","Vegan"],["gf","GF"],["child","Child"],["vip","VIP"]].forEach(([v,l]) => {
+      const o = document.createElement("option"); o.value = v; o.textContent = l;
+      if (guest && guest.tag === v) o.selected = true;
+      tagSel.appendChild(o);
+    });
+
+    const clearBtn = document.createElement("button"); clearBtn.className = "modal-seat-clear" + (guest ? "" : " hidden"); clearBtn.title = "Remove"; clearBtn.innerHTML = "&times;";
+
     input.addEventListener("input", () => {
       const val = input.value.trim();
       const existing = seatingState.guests.find(g => g.tableId === t && g.seat === s);
-      if (existing) {
-        if (val) existing.name = val;
-        else { seatingState.guests = seatingState.guests.filter(g => !(g.tableId === t && g.seat === s)); }
-      } else if (val) {
-        seatingState.guests.push({ id: crypto.randomUUID(), name: val, tableId: t, seat: s });
-      }
-      clearBtn.classList.toggle("hidden", !val);
-      updateModalStats();
+      if (existing) { if (val) existing.name = val; else { seatingState.guests = seatingState.guests.filter(g => !(g.tableId === t && g.seat === s)); tagSel.value = ""; tagSel.disabled = true; } }
+      else if (val) { seatingState.guests.push({ id: crypto.randomUUID(), name: val, tableId: t, seat: s, tag: null }); tagSel.disabled = false; }
+      clearBtn.classList.toggle("hidden", !val); updateModalStats();
     });
     input.addEventListener("keydown", e => {
-      if (e.key === "Enter") {
-        const next = body.querySelectorAll(".modal-seat-input")[s + 1];
-        if (next) next.focus(); else document.getElementById("c-seating-modal-close").click();
-      }
+      if (e.key === "Enter") { const ins = body.querySelectorAll(".modal-seat-input"); const next = ins[Array.from(ins).indexOf(input) + 1]; if (next) next.focus(); else document.getElementById("c-seating-modal-close").click(); }
     });
-    clearBtn.addEventListener("click", () => {
-      seatingState.guests = seatingState.guests.filter(g => !(g.tableId === t && g.seat === s));
-      input.value = ""; clearBtn.classList.add("hidden"); input.focus(); updateModalStats();
-    });
+    tagSel.addEventListener("change", () => { const g = seatingState.guests.find(g => g.tableId === t && g.seat === s); if (g) g.tag = tagSel.value || null; });
+    clearBtn.addEventListener("click", () => { seatingState.guests = seatingState.guests.filter(g => !(g.tableId === t && g.seat === s)); input.value = ""; clearBtn.classList.add("hidden"); tagSel.value = ""; tagSel.disabled = true; input.focus(); updateModalStats(); });
+
+    row.appendChild(num); row.appendChild(input); row.appendChild(tagSel); row.appendChild(clearBtn);
     body.appendChild(row);
   }
   updateModalStats();
@@ -1136,45 +1197,62 @@ function renderModalSeats() {
 function updateModalStats() {
   const t = modalTableIndex;
   const count = seatingState.guests.filter(g => g.tableId === t).length;
-  document.getElementById("c-modal-table-stats").textContent = `${count} / ${seatingState.seatsPerTable} seated`;
+  document.getElementById("c-modal-table-stats").textContent = `${count} / ${tableSeats(t)} seated`;
 }
 
-document.getElementById("c-seating-modal-close").onclick = () => {
-  document.getElementById("c-seating-modal-overlay").classList.add("hidden");
-  renderSeating();
-};
-document.getElementById("c-seating-modal-overlay").addEventListener("click", e => {
-  if (e.target === document.getElementById("c-seating-modal-overlay")) {
-    document.getElementById("c-seating-modal-close").click();
-  }
+document.getElementById("c-modal-title-input").addEventListener("input", e => {
+  if (modalTableIndex === null) return;
+  const val = e.target.value.trim();
+  if (val) seatingState.tableNames[modalTableIndex] = val; else delete seatingState.tableNames[modalTableIndex];
 });
+document.getElementById("c-modal-seats-dec").onclick = () => {
+  if (modalTableIndex === null) return;
+  const cur = tableSeats(modalTableIndex); if (cur <= 2) return;
+  seatingState.tableSizes[modalTableIndex] = cur - 1;
+  seatingState.guests.forEach(g => { if (g.tableId === modalTableIndex && g.seat >= cur - 1) { g.tableId = null; g.seat = null; } });
+  document.getElementById("c-modal-seats-val").textContent = tableSeats(modalTableIndex); renderModalSeats();
+};
+document.getElementById("c-modal-seats-inc").onclick = () => {
+  if (modalTableIndex === null) return;
+  const cur = tableSeats(modalTableIndex); if (cur >= 16) return;
+  seatingState.tableSizes[modalTableIndex] = cur + 1;
+  document.getElementById("c-modal-seats-val").textContent = tableSeats(modalTableIndex); renderModalSeats();
+};
+document.getElementById("c-seating-modal-close").onclick = () => { document.getElementById("c-seating-modal-overlay").classList.add("hidden"); renderSeating(); };
+document.getElementById("c-seating-modal-overlay").addEventListener("click", e => { if (e.target === document.getElementById("c-seating-modal-overlay")) document.getElementById("c-seating-modal-close").click(); });
 
 function updateSeatingStats() {
-  const total = seatingState.guests.length;
-  const seated = seatingState.guests.filter(g => g.tableId !== null).length;
+  const total = seatingState.guests.length, seated = seatingState.guests.filter(g => g.tableId !== null).length;
   document.getElementById("c-seating-stats").textContent = `${total} guest${total !== 1 ? "s" : ""} · ${seated} seated`;
 }
 
 document.getElementById("c-guest-add").onclick = () => {
   const input = document.getElementById("c-guest-input"), name = input.value.trim(); if (!name) return;
-  seatingState.guests.push({ id: crypto.randomUUID(), name, tableId: null, seat: null }); input.value = ""; renderSeating();
+  seatingState.guests.push({ id: crypto.randomUUID(), name, tableId: null, seat: null, tag: null }); input.value = ""; renderSeating();
 };
 document.getElementById("c-guest-input").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("c-guest-add").click(); });
 document.getElementById("c-seating-clear").onclick = () => {
   if (!seatingState.guests.length) return;
   if (confirm("Remove all guests and clear the seating chart?")) { seatingState.guests = []; seatingState.selected = null; renderSeating(); }
 };
+document.getElementById("c-import-csv").addEventListener("change", e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const names = reader.result.split(/[\r\n,]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 60);
+    let added = 0;
+    names.forEach(name => { if (!seatingState.guests.some(g => g.name.toLowerCase() === name.toLowerCase())) { seatingState.guests.push({ id: crypto.randomUUID(), name, tableId: null, seat: null, tag: null }); added++; } });
+    renderSeating();
+    if (!added) alert("No new guests found in the imported file.");
+  };
+  reader.readAsText(file); e.target.value = "";
+});
 
 // Table / seat count steppers
 function updateSeatingConfig() {
   document.getElementById("c-tables-count").textContent = seatingState.tables;
   document.getElementById("c-seats-count").textContent = seatingState.seatsPerTable;
-  // Unassign any guests whose seat no longer exists
-  seatingState.guests.forEach(g => {
-    if (g.tableId !== null && (g.tableId >= seatingState.tables || g.seat >= seatingState.seatsPerTable)) {
-      g.tableId = null; g.seat = null;
-    }
-  });
+  seatingState.guests.forEach(g => { if (g.tableId !== null && (g.tableId >= seatingState.tables || g.seat >= tableSeats(g.tableId))) { g.tableId = null; g.seat = null; } });
   renderSeating();
 }
 document.getElementById("c-tables-dec").onclick = () => { if (seatingState.tables > 1) { seatingState.tables--; updateSeatingConfig(); } };

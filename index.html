@@ -252,9 +252,17 @@
         <div class="seating-modal-overlay hidden" id="c-seating-modal-overlay">
           <div class="seating-modal" id="c-seating-modal">
             <div class="seating-modal-head">
-              <div>
-                <h3 class="seating-modal-title" id="c-modal-table-title">Table 1</h3>
-                <p class="muted sm" id="c-modal-table-stats" style="margin:2px 0 0">0 / 8 seated</p>
+              <div class="modal-head-content">
+                <input class="modal-title-input" id="c-modal-title-input" placeholder="Table name…" maxlength="30">
+                <div class="modal-head-meta">
+                  <p class="muted sm" id="c-modal-table-stats" style="margin:0">0 / 8 seated</p>
+                  <div class="modal-seat-stepper">
+                    <span class="modal-seat-stepper-label">Seats</span>
+                    <button class="stepper-btn stepper-btn--sm" id="c-modal-seats-dec">&#8722;</button>
+                    <span class="stepper-val" id="c-modal-seats-val">8</span>
+                    <button class="stepper-btn stepper-btn--sm" id="c-modal-seats-inc">&#43;</button>
+                  </div>
+                </div>
               </div>
               <button class="icon-close" id="c-seating-modal-close">&times;</button>
             </div>
@@ -303,7 +311,11 @@
                 <input id="c-guest-input" type="text" placeholder="Guest name..." maxlength="40">
                 <button class="btn btn-primary btn-sm" id="c-guest-add">Add</button>
               </div>
-              <p class="sidebar-section-title" style="margin-top:6px">Unassigned</p>
+              <label class="btn-import-label" title="Import guest names from a CSV or text file (one name per line)">
+                <input type="file" id="c-import-csv" accept=".csv,.txt" style="display:none">
+                &#128196; Import List
+              </label>
+              <p class="sidebar-section-title" style="margin-top:8px">Unassigned</p>
               <div class="seating-unassigned" id="c-guest-unassigned"><p class="muted sm" style="padding:6px 0">No guests yet.</p></div>
             </div>
             <div class="seating-main-panel">
