@@ -6,7 +6,7 @@ const SAMPLE_DOC = `AI Wedding Planner - Event Planning Brief\n\nEvent overview:
 
 const STOP_WORDS = new Set(["a","an","and","are","as","at","be","by","for","from","has","have","in","is","it","its","of","on","or","that","the","to","was","were","will","with","what","when","where","who","how","why","we","you","your","our","this","these","those","they","their","i"]);
 
-const BACKEND_URL = "http://localhost:5000";
+const BACKEND_URL = "http://192.168.0.149:5000";
 let backendOnline = false;
 
 const state = {
