@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WedBoard — AI-Powered Wedding Planning</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    /* ── Variables ──────────────────────────────────────── */
+    :root {
+      --bg:          #FAF9F6;
+      --bg-2:        #F4F1EB;
+      --bg-3:        #EDE8DE;
+      --ink:         #2A2A2A;
+      --ink-2:       #3C3228;
+      --muted:       #9B917E;
+      --gold:        #C1A775;
+      --gold-2:      #9D8558;
+      --gold-dark:   #7A6540;
+      --gold-soft:   rgba(193,167,117,.10);
+      --gold-mid:    rgba(193,167,117,.22);
+      --blush:       #E6C1C1;
+      --blush-soft:  #FBF4F4;
+      --line:        rgba(193,167,117,.22);
+      --shadow:      0 4px 24px rgba(60,50,40,.08);
+      --shadow-lg:   0 12px 48px rgba(60,50,40,.13);
+      --r:           16px;
+      --r-sm:        10px;
+    }
+
+    /* ── Reset ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    a { text-decoration: none; color: inherit; }
+    img { display: block; max-width: 100%; }
+
+    /* ── Utility ────────────────────────────────────────── */
+    .serif { font-family: 'Playfair Display', Georgia, serif; }
+    .container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+    .eyebrow {
+      display: inline-block;
+      font-size: .68rem; font-weight: 600;
+      letter-spacing: .18em; text-transform: uppercase;
+      color: var(--gold-2);
+      border: 1px solid var(--gold-mid);
+      background: var(--gold-soft);
+      padding: 5px 14px; border-radius: 999px;
+      margin-bottom: 18px;
+    }
+    .section-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 500;
+      color: var(--ink-2);
+      line-height: 1.25;
+      margin-bottom: 14px;
+    }
+    .section-sub {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 520px;
+      line-height: 1.7;
+    }
+    .gold-divider {
+      width: 56px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      margin: 20px 0;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: none; border-radius: 999px;
+      padding: 13px 28px;
+      font: inherit; font-size: .88rem; font-weight: 600;
+      cursor: pointer; letter-spacing: .03em;
+      transition: all .2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #C8AE7D, var(--gold-2));
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(193,167,117,.38);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(193,167,117,.5); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--ink-2);
+      border: 1.5px solid var(--line);
+    }
+    .btn-ghost:hover { background: var(--gold-soft); border-color: var(--gold); }
+
+    /* Scroll-reveal */
+    .reveal { opacity: 0; transform: translateY(28px); transition: opacity .65s ease, transform .65s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .reveal-delay-1 { transition-delay: .1s; }
+    .reveal-delay-2 { transition-delay: .2s; }
+    .reveal-delay-3 { transition-delay: .3s; }
+    .reveal-delay-4 { transition-delay: .4s; }
+
+    /* ── Navbar ─────────────────────────────────────────── */
+    .navbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+      background: rgba(250,249,246,.88);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--line);
+      transition: box-shadow .2s;
+    }
+    .navbar.scrolled { box-shadow: var(--shadow); }
+    .navbar-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 66px;
+    }
+    .nav-logo {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.55rem; font-weight: 700; letter-spacing: .04em;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold), #D4BA8C);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .nav-links {
+      display: flex; align-items: center; gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: .84rem; font-weight: 500; color: var(--muted);
+      letter-spacing: .02em; transition: color .14s;
+    }
+    .nav-links a:hover { color: var(--gold-2); }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-login {
+      font-size: .84rem; font-weight: 600; color: var(--gold-2);
+      border: 1.5px solid var(--gold-mid);
+      background: var(--gold-soft);
+      padding: 8px 20px; border-radius: 999px;
+      cursor: pointer; transition: all .16s;
+    }
+    .nav-login:hover { background: var(--gold-mid); border-color: var(--gold); }
+    .hamburger {
+      display: none; flex-direction: column; gap: 5px; cursor: pointer;
+      background: none; border: none; padding: 4px;
+    }
+    .hamburger span { display: block; width: 22px; height: 2px; background: var(--ink-2); border-radius: 2px; transition: all .2s; }
+    .mobile-nav {
+      display: none; position: fixed; inset: 0; z-index: 800;
+      background: var(--bg); flex-direction: column;
+      align-items: center; justify-content: center; gap: 28px;
+    }
+    .mobile-nav.open { display: flex; }
+    .mobile-nav a { font-family: 'Playfair Display',serif; font-size: 1.8rem; color: var(--ink-2); }
+    .mobile-nav-close { position: absolute; top: 22px; right: 28px; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--muted); }
+
+    /* ── Hero ───────────────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+      padding: 120px 0 80px;
+      background:
+        radial-gradient(ellipse at 10% 20%, rgba(193,167,117,.08), transparent 55%),
+        radial-gradient(ellipse at 90% 80%, rgba(230,193,193,.1), transparent 55%),
+        radial-gradient(ellipse at 80% 10%, rgba(193,167,117,.05), transparent 45%),
+        linear-gradient(160deg, #FAF9F6, #F8F4EE 50%, #FAF3F0);
+    }
+    /* Decorative watermark */
+    .hero::before {
+      content: '✦';
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      font-size: 60vw; line-height: 1; color: rgba(193,167,117,.03);
+      pointer-events: none; user-select: none; letter-spacing: -5vw;
+    }
+    .hero-inner {
+      text-align: center;
+      max-width: 800px;
+      position: relative;
+    }
+    .hero-ornament {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; margin-bottom: 24px; color: var(--gold);
+      font-size: .78rem; letter-spacing: .22em; text-transform: uppercase;
+    }
+    .hero-ornament::before, .hero-ornament::after {
+      content: ''; flex: 1; max-width: 60px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold));
+    }
+    .hero-ornament::after { background: linear-gradient(90deg, var(--gold), transparent); }
+    .hero h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(2.6rem, 6vw, 4.4rem);
+      font-weight: 500; line-height: 1.18; color: var(--ink-2);
+      margin-bottom: 22px; letter-spacing: .01em;
+    }
+    .hero h1 em { font-style: italic; color: var(--gold-2); }
+    .hero-sub {
+      font-size: clamp(.95rem, 2vw, 1.1rem);
+      color: var(--muted); max-width: 560px; margin: 0 auto 38px;
+      line-height: 1.75;
+    }
+    .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .hero-scroll {
+      position: absolute; bottom: -60px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      color: var(--muted); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
+      animation: float 2.4s ease-in-out infinite;
+      cursor: pointer;
+    }
+    .hero-scroll svg { width: 18px; height: 18px; }
+    @keyframes float { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(6px)} }
+
+    /* App preview mockup */
+    .hero-mockup {
+      margin-top: 70px;
+      position: relative;
+      max-width: 840px;
+      margin-left: auto; margin-right: auto;
+    }
+    .mockup-frame {
+      background: rgba(250,249,246,.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--gold-mid);
+      border-radius: 20px;
+      box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255,255,255,.5);
+      overflow: hidden;
+    }
+    .mockup-bar {
+      display: flex; align-items: center; gap: 7px;
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+      background: rgba(244,241,235,.8);
+    }
+    .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mockup-dot:nth-child(1) { background: #F4A0A0; }
+    .mockup-dot:nth-child(2) { background: #F0C070; }
+    .mockup-dot:nth-child(3) { background: #90C890; }
+    .mockup-url {
+      flex: 1; text-align: center;
+      background: var(--bg); border: 1px solid var(--line);
+      border-radius: 999px; padding: 3px 14px;
+      font-size: .72rem; color: var(--muted); letter-spacing: .03em;
+    }
+    .mockup-content {
+      display: grid; grid-template-columns: 200px 1fr;
+      height: 260px;
+    }
+    .mockup-sidebar {
+      background: var(--bg-2); border-right: 1px solid var(--line); padding: 14px 12px;
+    }
+    .mockup-logo-sm {
+      font-family: 'Playfair Display',serif; font-size: 1.2rem; font-weight: 700;
+      background: linear-gradient(135deg,var(--gold-dark),var(--gold));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+      margin-bottom: 12px; padding-left: 4px;
+    }
+    .mockup-label { font-size: .56rem; text-transform: uppercase; letter-spacing: .12em; color: var(--gold); font-weight: 600; padding: 4px; margin-bottom: 4px; }
+    .mockup-vendor {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 8px; border-radius: 8px; margin-bottom: 3px;
+    }
+    .mockup-vendor.active { background: rgba(230,193,193,.22); box-shadow: inset 3px 0 0 var(--blush); }
+    .mockup-av { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display',serif; font-size: .72rem; font-weight: 600; color: #fff; flex-shrink: 0; }
+    .mockup-av.peach { background: linear-gradient(145deg,#EAA96C,#C07030); }
+    .mockup-av.mint  { background: linear-gradient(145deg,#6BBE90,#368C5C); }
+    .mockup-av.sky   { background: linear-gradient(145deg,#5A9ED4,#2868A8); }
+    .mockup-av.lav   { background: linear-gradient(145deg,#A88ED8,#6A54B0); }
+    .mockup-vname { font-size: .68rem; font-weight: 600; color: var(--ink); line-height: 1.1; }
+    .mockup-vcat  { font-size: .58rem; color: var(--muted); }
+    .mockup-main { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .mockup-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+    .mockup-tab { padding: 6px 10px; font-size: .64rem; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; border-bottom: 2px solid transparent; cursor: default; }
+    .mockup-tab.active { color: var(--gold-2); border-bottom-color: var(--gold); }
+    .mockup-bubble {
+      background: rgba(250,249,246,.8); border: 1px solid var(--gold-mid);
+      border-radius: 10px 10px 10px 3px; padding: 7px 10px;
+      font-size: .65rem; color: var(--muted); max-width: 80%; line-height: 1.45;
+      backdrop-filter: blur(4px);
+    }
+    .mockup-bubble.ai { background: rgba(245,249,247,.75); border-color: rgba(122,168,144,.3); }
+    .mockup-bubble.human { align-self: flex-end; background: linear-gradient(135deg,var(--gold),var(--gold-2)); color: #fff; border-color: transparent; border-radius: 10px 10px 3px 10px; }
+    .mockup-bubbles { display: flex; flex-direction: column; gap: 6px; }
+
+    /* ── Feature strip ──────────────────────────────────── */
+    .feature-strip {
+      border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+      background: var(--bg-2); padding: 18px 0;
+    }
+    .feature-strip-inner {
+      display: flex; align-items: center; justify-content: center;
+      gap: 36px; flex-wrap: wrap;
+    }
+    .strip-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: .78rem; font-weight: 500; color: var(--muted); letter-spacing: .04em;
+    }
+    .strip-item svg { width: 15px; height: 15px; color: var(--gold); }
+
+    /* ── Features section ───────────────────────────────── */
+    .features-section { padding: 110px 0; }
+    .features-header { text-align: center; margin-bottom: 64px; }
+    .features-header .section-sub { margin: 0 auto; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+    }
+    .feature-card {
+      background: rgba(250,249,246,.9);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 32px 28px;
+      position: relative; overflow: hidden;
+      transition: box-shadow .2s, transform .2s, border-color .2s;
+      box-shadow: var(--shadow);
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 80% 0%, rgba(193,167,117,.06), transparent 65%);
+      pointer-events: none;
+    }
+    .feature-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--gold-mid); }
+    .feature-icon-wrap {
+      width: 52px; height: 52px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-2));
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(193,167,117,.3), inset 0 1px 0 rgba(255,255,255,.25);
+    }
+    .feature-icon-wrap svg { width: 22px; height: 22px; color: #fff; }
+    .feature-card h3 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.12rem; font-weight: 500; color: var(--ink-2);
+      margin-bottom: 10px;
+    }
+    .feature-card p { font-size: .87rem; color: var(--muted); line-height: 1.65; }
+    .feature-tag {
+      display: inline-block; margin-top: 16px;
+      font-size: .68rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--gold-2); border-bottom: 1px solid var(--gold-mid); padding-bottom: 1px;
+    }
+
+    /* ── How It Works ───────────────────────────────────── */
+    .how-section {
+      padding: 100px 0;
+      background: linear-gradient(160deg, var(--bg-2), var(--bg));
+      position: relative; overflow: hidden;
+    }
+    .how-section::before {
+      content: '✦ ✦ ✦';
+      position: absolute; top: 40px; right: -20px;
+      font-size: 6rem; color: rgba(193,167,117,.04);
+      letter-spacing: 2rem; pointer-events: none; user-select: none;
+    }
+    .how-header { margin-bottom: 60px; }
+    .how-steps {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 40px; position: relative;
+    }
+    .how-step { text-align: center; }
+    .how-step-num {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--bg); border: 1.5px solid var(--gold-mid);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif; font-size: 1.3rem;
+      color: var(--gold-2); font-weight: 500;
+      box-shadow: 0 0 0 8px rgba(193,167,117,.05), var(--shadow);
+      margin-bottom: 20px;
+    }
+    .how-step h4 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.05rem; font-weight: 500; color: var(--ink-2); margin-bottom: 8px;
+    }
+    .how-step p { font-size: .85rem; color: var(--muted); line-height: 1.65; max-width: 240px; margin: 0 auto; }
+
+    /* ── Testimonials ───────────────────────────────────── */
+    .testimonials-section { padding: 110px 0; }
+    .testimonials-header { text-align: center; margin-bottom: 56px; }
+    .testimonials-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+    .testimonial-card {
+      background: var(--bg-2);
+      border: 1px solid var(--line); border-radius: var(--r);
+      padding: 36px 32px;
+      position: relative; overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: box-shadow .2s, transform .2s;
+    }
+    .testimonial-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .testimonial-card::before {
+      content: '\201C';
+      position: absolute; top: 16px; left: 20px;
+      font-family: 'Playfair Display', serif;
+      font-size: 7rem; line-height: 1; color: rgba(193,167,117,.12);
+      pointer-events: none;
+    }
+    .testimonial-stars { color: #C8A04A; font-size: .9rem; letter-spacing: 2px; margin-bottom: 16px; }
+    .testimonial-text {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1rem; color: var(--ink-2);
+      line-height: 1.72; margin-bottom: 24px;
+      font-style: italic; position: relative; z-index: 1;
+    }
+    .testimonial-author { display: flex; align-items: center; gap: 12px; }
+    .testimonial-avatar {
+      width: 42px; height: 42px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-weight: 600; font-size: .9rem; color: #fff;
+      box-shadow: 0 2px 8px rgba(60,50,40,.15);
+    }
+    .testimonial-avatar.a1 { background: linear-gradient(145deg,#D4909E,#B05474); }
+    .testimonial-avatar.a2 { background: linear-gradient(145deg,#8AAFC8,#2868A8); }
+    .testimonial-avatar.a3 { background: linear-gradient(145deg,#6BBE90,#368C5C); }
+    .testimonial-name { font-weight: 600; font-size: .88rem; color: var(--ink-2); }
+    .testimonial-label { font-size: .75rem; color: var(--muted); }
+
+    /* ── CTA Banner ─────────────────────────────────────── */
+    .cta-section {
+      padding: 100px 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(193,167,117,.14), transparent 60%),
+        radial-gradient(ellipse at 80% 50%, rgba(230,193,193,.12), transparent 60%),
+        var(--bg-2);
+      text-align: center; position: relative; overflow: hidden;
+    }
+    .cta-section::before {
+      content: '✦';
+      position: absolute; bottom: -40px; right: 60px;
+      font-size: 18rem; color: rgba(193,167,117,.04);
+      pointer-events: none; user-select: none; line-height: 1;
+    }
+    .cta-section .section-title { margin-bottom: 12px; }
+    .cta-section .section-sub { margin: 0 auto 36px; }
+    .cta-badges {
+      display: flex; justify-content: center; gap: 18px; flex-wrap: wrap;
+      margin-top: 28px;
+    }
+    .cta-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: .76rem; color: var(--muted);
+    }
+    .cta-badge svg { width: 14px; height: 14px; color: var(--gold); }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    footer {
+      background: var(--bg-3); border-top: 1px solid var(--line);
+      padding: 52px 0 32px;
+    }
+    .footer-inner {
+      display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr;
+      gap: 40px; margin-bottom: 44px;
+    }
+    .footer-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem; font-weight: 700; letter-spacing: .04em;
+      background: linear-gradient(135deg,var(--gold-dark),var(--gold));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+      margin-bottom: 12px; display: block;
+    }
+    .footer-desc { font-size: .82rem; color: var(--muted); line-height: 1.65; max-width: 220px; }
+    .footer-col-title {
+      font-size: .68rem; font-weight: 700; letter-spacing: .14em;
+      text-transform: uppercase; color: var(--gold-2);
+      margin-bottom: 14px;
+    }
+    .footer-links { display: flex; flex-direction: column; gap: 8px; }
+    .footer-links a { font-size: .82rem; color: var(--muted); transition: color .14s; }
+    .footer-links a:hover { color: var(--gold-2); }
+    .footer-bottom {
+      border-top: 1px solid var(--line); padding-top: 24px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .75rem; color: var(--muted); flex-wrap: wrap; gap: 8px;
+    }
+
+    /* ── Login Modal ────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(30,24,20,.4);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal-card {
+      background: var(--bg);
+      border: 1px solid rgba(193,167,117,.25);
+      border-radius: 24px;
+      padding: 44px 40px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 24px 64px rgba(60,50,40,.18);
+      transform: translateY(16px) scale(.98);
+      transition: transform .2s;
+      position: relative;
+    }
+    .modal-overlay.open .modal-card { transform: translateY(0) scale(1); }
+    .modal-close {
+      position: absolute; top: 16px; right: 18px;
+      background: none; border: none; cursor: pointer;
+      font-size: 1.4rem; color: var(--muted); transition: color .12s;
+    }
+    .modal-close:hover { color: var(--ink); }
+    .modal-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold), #D4BA8C);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+      text-align: center; margin-bottom: 4px; display: block;
+    }
+    .modal-tagline { text-align: center; color: var(--muted); font-size: .84rem; margin-bottom: 28px; font-style: italic; }
+    .modal-tabs {
+      display: flex; border-bottom: 1px solid var(--line); margin-bottom: 24px; gap: 0;
+    }
+    .modal-tab {
+      flex: 1; padding: 9px; border: none; background: none; font: inherit;
+      font-size: .82rem; font-weight: 600; color: var(--muted); cursor: pointer;
+      border-bottom: 2px solid transparent; transition: all .14s; letter-spacing: .04em;
+    }
+    .modal-tab.active { color: var(--gold-2); border-bottom-color: var(--gold); }
+    .modal-form { display: flex; flex-direction: column; gap: 12px; }
+    .modal-form.hidden { display: none; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: .72rem; font-weight: 600; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; }
+    .field input {
+      border: 1.5px solid var(--line); border-radius: var(--r-sm);
+      padding: 11px 14px; font: inherit; font-size: .9rem;
+      background: rgba(250,249,246,.8); color: var(--ink);
+      transition: border .14s, box-shadow .14s;
+    }
+    .field input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(193,167,117,.1); }
+    .modal-err { min-height: 1em; font-size: .78rem; color: #C47575; font-weight: 600; }
+    .modal-footer-text { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 12px; }
+    .modal-footer-text a { color: var(--gold-2); font-weight: 600; cursor: pointer; }
+
+    /* ── Responsive ─────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .footer-inner { grid-template-columns: 1fr 1fr; }
+      .mockup-content { grid-template-columns: 1fr; }
+      .mockup-sidebar { display: none; }
+    }
+    @media (max-width: 680px) {
+      .nav-links { display: none; }
+      .hamburger { display: flex; }
+      .hero h1 { font-size: 2.2rem; }
+      .features-grid { grid-template-columns: 1fr; }
+      .testimonials-grid { grid-template-columns: 1fr; }
+      .footer-inner { grid-template-columns: 1fr; gap: 28px; }
+      .footer-bottom { flex-direction: column; text-align: center; }
+      .hero-cta { flex-direction: column; align-items: center; }
+      .feature-strip-inner { gap: 20px; }
+      .mockup-tabs .mockup-tab:nth-child(n+3) { display: none; }
+      .modal-card { padding: 32px 24px; }
+      .how-steps { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ NAVBAR ═══════════════════════════════════════════════════════════ -->
+  <nav class="navbar" id="navbar">
+    <div class="container navbar-inner">
+      <a href="#" class="nav-logo">WedBoard</a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how">How It Works</a></li>
+        <li><a href="#reviews">Reviews</a></li>
+      </ul>
+      <div class="nav-right">
+        <button class="nav-login" id="open-login">Log In</button>
+        <a href="index.html" class="btn btn-primary" style="padding:8px 20px;font-size:.84rem">Start Planning</a>
+      </div>
+      <button class="hamburger" id="hamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile nav -->
+  <div class="mobile-nav" id="mobile-nav">
+    <button class="mobile-nav-close" id="mobile-close">&times;</button>
+    <a href="#features" class="mobile-link">Features</a>
+    <a href="#how" class="mobile-link">How It Works</a>
+    <a href="#reviews" class="mobile-link">Reviews</a>
+    <button class="btn btn-primary" style="margin-top:8px" onclick="openLogin()">Log In</button>
+    <a href="index.html" class="btn btn-ghost" style="margin-top:4px">Start Planning</a>
+  </div>
+
+  <!-- ═══ HERO ═════════════════════════════════════════════════════════════ -->
+  <section class="hero" id="hero">
+    <div class="container">
+      <div class="hero-inner reveal">
+        <div class="hero-ornament">AI-Powered Wedding Planning</div>
+        <h1>Your Love Story,<br><em>Orchestrated</em> with Intelligence.</h1>
+        <p class="hero-sub">One elegant workspace where couples and vendors collaborate seamlessly — from the first conversation to the last place card.</p>
+        <div class="hero-cta">
+          <a href="index.html" class="btn btn-primary" style="font-size:.92rem;padding:14px 32px">
+            <i data-lucide="sparkles" style="width:16px;height:16px"></i>
+            Start Planning Free
+          </a>
+          <a href="#features" class="btn btn-ghost" style="font-size:.92rem;padding:14px 32px">
+            See How It Works
+          </a>
+        </div>
+      </div>
+
+      <!-- App Preview Mockup -->
+      <div class="hero-mockup reveal reveal-delay-2">
+        <div class="mockup-frame">
+          <div class="mockup-bar">
+            <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
+            <div class="mockup-url">wedboard.app/dashboard</div>
+          </div>
+          <div class="mockup-content">
+            <div class="mockup-sidebar">
+              <div class="mockup-logo-sm">W</div>
+              <div class="mockup-label">Vendors</div>
+              <div class="mockup-vendor active">
+                <div class="mockup-av peach">G</div>
+                <div><div class="mockup-vname">Golden Hour Studio</div><div class="mockup-vcat">Photographer</div></div>
+              </div>
+              <div class="mockup-vendor">
+                <div class="mockup-av mint">P</div>
+                <div><div class="mockup-vname">Petal &amp; Vine</div><div class="mockup-vcat">Florist</div></div>
+              </div>
+              <div class="mockup-vendor">
+                <div class="mockup-av sky">B</div>
+                <div><div class="mockup-vname">Blue Note Events</div><div class="mockup-vcat">DJ / Music</div></div>
+              </div>
+              <div class="mockup-vendor">
+                <div class="mockup-av lav">H</div>
+                <div><div class="mockup-vname">Hearth Table</div><div class="mockup-vcat">Caterer</div></div>
+              </div>
+            </div>
+            <div class="mockup-main">
+              <div class="mockup-tabs">
+                <div class="mockup-tab active">&#128172; Chat</div>
+                <div class="mockup-tab">&#128269; Discover</div>
+                <div class="mockup-tab">&#129681; Seating</div>
+                <div class="mockup-tab">&#128140; Cards</div>
+              </div>
+              <div class="mockup-bubbles">
+                <div class="mockup-bubble">Hi! Could you confirm the ceremony start time for the June 21st event?</div>
+                <div class="mockup-bubble ai">Of course! Ceremony begins at 4:30 PM. Guest arrival from 4:00 PM. I've updated the vendor schedule.</div>
+                <div class="mockup-bubble human">Perfect — @ai generate doc timeline</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FEATURE STRIP ════════════════════════════════════════════════════ -->
+  <div class="feature-strip">
+    <div class="container feature-strip-inner">
+      <div class="strip-item"><i data-lucide="shield-check"></i> Secure &amp; Private</div>
+      <div class="strip-item"><i data-lucide="zap"></i> Real-Time AI Responses</div>
+      <div class="strip-item"><i data-lucide="users"></i> Couple + Vendor Collaboration</div>
+      <div class="strip-item"><i data-lucide="file-text"></i> AI Document Generation</div>
+      <div class="strip-item"><i data-lucide="smartphone"></i> Works on Any Device</div>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURES ═════════════════════════════════════════════════════════ -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="features-header">
+        <span class="eyebrow">Core Features</span>
+        <h2 class="section-title">Everything You Need for<br>Your Perfect Day</h2>
+        <div class="gold-divider" style="margin:18px auto"></div>
+        <p class="section-sub">Four powerful tools — beautifully unified into one workspace your whole team can use.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card reveal">
+          <div class="feature-icon-wrap">
+            <i data-lucide="bot"></i>
+          </div>
+          <h3>AI Vendor Chat</h3>
+          <p>Direct, intelligent conversations with your photographer, florist, caterer and more. The AI reads your uploaded documents and answers questions instantly.</p>
+          <span class="feature-tag">Powered by GPT-4</span>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-1">
+          <div class="feature-icon-wrap">
+            <i data-lucide="compass"></i>
+          </div>
+          <h3>Smart Discovery</h3>
+          <p>Browse curated vendors by category — photographers, florists, venues and more — and add them to your planning workspace with one click.</p>
+          <span class="feature-tag">Curated Network</span>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-2">
+          <div class="feature-icon-wrap">
+            <i data-lucide="layout-grid"></i>
+          </div>
+          <h3>Seamless Seating</h3>
+          <p>Click any table to open it and type guest names directly into seats. Customize the number of tables and seats per table to match your venue layout.</p>
+          <span class="feature-tag">Visual Planner</span>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-3">
+          <div class="feature-icon-wrap">
+            <i data-lucide="scroll-text"></i>
+          </div>
+          <h3>Digital Card Studio</h3>
+          <p>Design and print place cards, thank-you notes, dinner menus, and invitations. Live preview updates as you type, and prints beautifully to PDF.</p>
+          <span class="feature-tag">Print-Ready</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ HOW IT WORKS ══════════════════════════════════════════════════════ -->
+  <section class="how-section" id="how">
+    <div class="container">
+      <div class="how-header">
+        <span class="eyebrow">Simple Process</span>
+        <h2 class="section-title" style="max-width:480px">From Chaos to Curated<br>in Three Steps</h2>
+        <div class="gold-divider"></div>
+      </div>
+      <div class="how-steps">
+        <div class="how-step reveal">
+          <div class="how-step-num">I</div>
+          <h4>Create Your Workspace</h4>
+          <p>Register as a couple, add your wedding date, venue, and guest count. Your private planning hub is ready in seconds.</p>
+        </div>
+        <div class="how-step reveal reveal-delay-1">
+          <div class="how-step-num">II</div>
+          <h4>Connect Your Vendors</h4>
+          <p>Discover and add vendors from our curated network, or invite your existing ones. Each gets their own chat channel.</p>
+        </div>
+        <div class="how-step reveal reveal-delay-2">
+          <div class="how-step-num">III</div>
+          <h4>Plan Together with AI</h4>
+          <p>Upload documents, ask questions, generate timelines, design seating charts, and print cards — all in one place.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ TESTIMONIALS ══════════════════════════════════════════════════════ -->
+  <section class="testimonials-section" id="reviews">
+    <div class="container">
+      <div class="testimonials-header">
+        <span class="eyebrow">Love Stories</span>
+        <h2 class="section-title">Couples Who Planned<br>Their Perfect Day</h2>
+        <div class="gold-divider" style="margin:18px auto"></div>
+      </div>
+      <div class="testimonials-grid">
+        <div class="testimonial-card reveal">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"WedBoard turned our chaotic planning phase into a calm, curated experience. Every vendor was in sync, and the AI felt like having a personal wedding coordinator on call 24/7."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar a1">S</div>
+            <div>
+              <div class="testimonial-name">Sarah &amp; James</div>
+              <div class="testimonial-label">Married in Napa Valley · June 2025</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card reveal reveal-delay-1">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"The AI chat handled the heavy lifting so we could focus on the moments that matter. Our photographer, florist and caterer were all perfectly aligned without a single stressed email."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar a2">M</div>
+            <div>
+              <div class="testimonial-name">The Millers</div>
+              <div class="testimonial-label">Married in Sonoma · September 2025</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card reveal reveal-delay-2">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"The seating chart alone saved us three hours the night before the wedding. We just opened each table and typed names in. It was genuinely delightful to use."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar a3">A</div>
+            <div>
+              <div class="testimonial-name">Aisha &amp; Carlos</div>
+              <div class="testimonial-label">Married in Santa Barbara · March 2025</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CTA BANNER ════════════════════════════════════════════════════════ -->
+  <section class="cta-section">
+    <div class="container reveal">
+      <span class="eyebrow">Ready to Begin?</span>
+      <h2 class="section-title">Begin Your<br><em style="font-style:italic;color:var(--gold-2)">Wedding Journey</em></h2>
+      <div class="gold-divider" style="margin:18px auto"></div>
+      <p class="section-sub">Join couples who've discovered a calmer, more beautiful way to plan their perfect day.</p>
+      <div style="margin-top:32px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+        <a href="index.html" class="btn btn-primary" style="font-size:.92rem;padding:14px 32px">
+          <i data-lucide="heart" style="width:15px;height:15px"></i>
+          Create Your Wedding
+        </a>
+        <button class="btn btn-ghost" style="font-size:.92rem;padding:14px 32px" onclick="openLogin()">
+          Log In to Dashboard
+        </button>
+      </div>
+      <div class="cta-badges">
+        <div class="cta-badge"><i data-lucide="check-circle"></i> Free to start</div>
+        <div class="cta-badge"><i data-lucide="check-circle"></i> No credit card required</div>
+        <div class="cta-badge"><i data-lucide="check-circle"></i> Works offline</div>
+        <div class="cta-badge"><i data-lucide="check-circle"></i> Mobile friendly</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FOOTER ════════════════════════════════════════════════════════════ -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div>
+          <span class="footer-logo">WedBoard</span>
+          <p class="footer-desc">An AI-powered wedding planning workspace for couples and vendors who believe every detail deserves intention.</p>
+        </div>
+        <div>
+          <div class="footer-col-title">Product</div>
+          <div class="footer-links">
+            <a href="#features">Features</a>
+            <a href="#how">How It Works</a>
+            <a href="index.html">Dashboard</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-title">Planning</div>
+          <div class="footer-links">
+            <a href="index.html">AI Chat</a>
+            <a href="index.html">Vendor Discovery</a>
+            <a href="index.html">Seating Chart</a>
+            <a href="index.html">Card Studio</a>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-title">Account</div>
+          <div class="footer-links">
+            <a href="index.html">Create Account</a>
+            <a href="#" onclick="openLogin();return false">Sign In</a>
+            <a href="index.html">Vendor Portal</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2025 WedBoard. Crafted with love for every love story.</span>
+        <span>✦ &nbsp; Your big day deserves beautiful planning.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══ LOGIN MODAL ═══════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-card">
+      <button class="modal-close" id="modal-close">&times;</button>
+      <span class="modal-logo">WedBoard</span>
+      <p class="modal-tagline">One shared brain for your wedding.</p>
+
+      <div class="modal-tabs">
+        <button class="modal-tab active" id="tab-signin" onclick="switchTab('signin')">Sign In</button>
+        <button class="modal-tab" id="tab-register" onclick="switchTab('register')">Create Account</button>
+      </div>
+
+      <!-- Sign In Form -->
+      <div id="form-signin" class="modal-form">
+        <div class="field">
+          <label>Username</label>
+          <input id="si-user" type="text" placeholder="your username" autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="si-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <p class="modal-err" id="si-err"></p>
+        <button class="btn btn-primary w100" style="width:100%;justify-content:center;margin-top:4px" onclick="doSignIn()">
+          Sign In
+        </button>
+        <p class="modal-footer-text">No account? <a onclick="switchTab('register')">Create one free</a></p>
+      </div>
+
+      <!-- Register Form -->
+      <div id="form-register" class="modal-form hidden">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field"><label>Partner 1</label><input id="rg-n1" type="text" placeholder="e.g. Riya"></div>
+          <div class="field"><label>Partner 2</label><input id="rg-n2" type="text" placeholder="e.g. Bhargav"></div>
+        </div>
+        <div class="field"><label>Username</label><input id="rg-user" type="text" placeholder="Choose a username" autocomplete="username"></div>
+        <div class="field"><label>Password</label><input id="rg-pass" type="password" placeholder="Min 4 characters" autocomplete="new-password"></div>
+        <p class="modal-err" id="rg-err"></p>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px" onclick="doRegister()">
+          Create Account
+        </button>
+        <p class="modal-footer-text">Already have an account? <a onclick="switchTab('signin')">Sign in</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Lucide Icons ─────────────────────────────────────
+    lucide.createIcons();
+
+    // ── Navbar scroll effect ─────────────────────────────
+    window.addEventListener('scroll', () => {
+      document.getElementById('navbar').classList.toggle('scrolled', scrollY > 40);
+    });
+
+    // ── Mobile nav ───────────────────────────────────────
+    document.getElementById('hamburger').onclick = () =>
+      document.getElementById('mobile-nav').classList.add('open');
+    document.getElementById('mobile-close').onclick = () =>
+      document.getElementById('mobile-nav').classList.remove('open');
+    document.querySelectorAll('.mobile-link').forEach(a =>
+      a.addEventListener('click', () => document.getElementById('mobile-nav').classList.remove('open'))
+    );
+
+    // ── Scroll reveal ────────────────────────────────────
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); }
+      });
+    }, { threshold: 0.08 });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // ── Modal ────────────────────────────────────────────
+    function openLogin() {
+      document.getElementById('modal-overlay').classList.add('open');
+      setTimeout(() => document.getElementById('si-user').focus(), 120);
+    }
+    function closeLogin() {
+      document.getElementById('modal-overlay').classList.remove('open');
+    }
+    document.getElementById('open-login').onclick = openLogin;
+    document.getElementById('modal-close').onclick = closeLogin;
+    document.getElementById('modal-overlay').addEventListener('click', e => {
+      if (e.target === document.getElementById('modal-overlay')) closeLogin();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLogin(); });
+
+    function switchTab(t) {
+      document.getElementById('tab-signin').classList.toggle('active', t === 'signin');
+      document.getElementById('tab-register').classList.toggle('active', t === 'register');
+      document.getElementById('form-signin').classList.toggle('hidden', t !== 'signin');
+      document.getElementById('form-register').classList.toggle('hidden', t !== 'register');
+    }
+
+    // Enter-key submit
+    ['si-user','si-pass'].forEach(id =>
+      document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doSignIn(); })
+    );
+    ['rg-n1','rg-n2','rg-user','rg-pass'].forEach(id =>
+      document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); })
+    );
+
+    // ── Auth helpers ─────────────────────────────────────
+    function simpleHash(s) {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
+      return h.toString(16);
+    }
+    function getUsers() {
+      try { return JSON.parse(localStorage.getItem('wedboard:users') || '{}'); } catch { return {}; }
+    }
+    function saveUsers(u) { localStorage.setItem('wedboard:users', JSON.stringify(u)); }
+
+    function doSignIn() {
+      const err = document.getElementById('si-err');
+      err.textContent = '';
+      const username = document.getElementById('si-user').value.trim();
+      const password = document.getElementById('si-pass').value;
+      if (!username || !password) { err.textContent = 'Enter username and password.'; return; }
+      const users = getUsers(), key = username.toLowerCase(), user = users[key];
+      if (!user) { err.textContent = 'Account not found.'; return; }
+      if (user.pwHash !== simpleHash(password)) { err.textContent = 'Wrong password.'; return; }
+      localStorage.setItem('wedboard:session', JSON.stringify({
+        userId: user.id, username: user.username, role: user.role
+      }));
+      window.location.href = 'index.html';
+    }
+
+    function doRegister() {
+      const err = document.getElementById('rg-err');
+      err.textContent = '';
+      const n1 = document.getElementById('rg-n1').value.trim();
+      const n2 = document.getElementById('rg-n2').value.trim();
+      const username = document.getElementById('rg-user').value.trim();
+      const password = document.getElementById('rg-pass').value;
+      if (!n1 || !n2) { err.textContent = 'Enter both partner names.'; return; }
+      if (!username || username.length < 2) { err.textContent = 'Username must be at least 2 characters.'; return; }
+      if (!password || password.length < 4) { err.textContent = 'Password must be at least 4 characters.'; return; }
+      const users = getUsers(), key = username.toLowerCase();
+      if (users[key]) { err.textContent = 'Username already taken.'; return; }
+      const id = (Date.now().toString(36) + Math.random().toString(36).slice(2));
+      const profile = { partner1: n1, partner2: n2, weddingDate: '', venue: '', guestCount: '', style: '' };
+      users[key] = { id, username, role: 'couple', profile, pwHash: simpleHash(password), createdAt: new Date().toISOString() };
+      saveUsers(users);
+      localStorage.setItem('wedboard:session', JSON.stringify({ userId: id, username, role: 'couple' }));
+      window.location.href = 'index.html';
+    }
+
+    // ── Smooth scroll for anchor links ───────────────────
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      });
+    });
+  </script>
+</body>
+</html>

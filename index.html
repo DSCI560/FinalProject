@@ -217,6 +217,20 @@
               <strong>Discover Vendors</strong>
               <span class="muted sm">Find the perfect vendors for your wedding</span>
             </div>
+            <div class="m-topbar-actions">
+              <div class="location-select-wrap">
+                <span class="loc-icon">&#128205;</span>
+                <select id="c-location-select" class="location-select">
+                  <option value="">All Cities</option>
+                  <option value="New York">New York, NY</option>
+                  <option value="Los Angeles">Los Angeles, CA</option>
+                  <option value="Chicago">Chicago, IL</option>
+                  <option value="Miami">Miami, FL</option>
+                  <option value="Nashville">Nashville, TN</option>
+                  <option value="San Francisco">San Francisco, CA</option>
+                </select>
+              </div>
+            </div>
           </header>
           <div class="discover-body">
             <div class="discover-filters" id="c-discover-filters">
@@ -233,6 +247,20 @@
           </div>
         </div>
 
+        <!-- ── Seating Table Modal ── -->
+        <div class="seating-modal-overlay hidden" id="c-seating-modal-overlay">
+          <div class="seating-modal" id="c-seating-modal">
+            <div class="seating-modal-head">
+              <div>
+                <h3 class="seating-modal-title" id="c-modal-table-title">Table 1</h3>
+                <p class="muted sm" id="c-modal-table-stats" style="margin:2px 0 0">0 / 8 seated</p>
+              </div>
+              <button class="icon-close" id="c-seating-modal-close">&times;</button>
+            </div>
+            <div class="seating-modal-body" id="c-seating-modal-seats"></div>
+          </div>
+        </div>
+
         <!-- ── Seating Panel ── -->
         <div id="c-tab-seating" class="c-tab-panel hidden">
           <header class="m-topbar">
@@ -246,7 +274,30 @@
           </header>
           <div class="seating-body">
             <div class="seating-sidebar-panel">
-              <p class="sidebar-section-title">Add Guests</p>
+
+              <!-- Table configuration -->
+              <p class="sidebar-section-title">Table Settings</p>
+              <div class="seating-config">
+                <div class="seating-config-row">
+                  <span class="seating-config-label">Tables</span>
+                  <div class="stepper">
+                    <button class="stepper-btn" id="c-tables-dec">&#8722;</button>
+                    <span class="stepper-val" id="c-tables-count">4</span>
+                    <button class="stepper-btn" id="c-tables-inc">&#43;</button>
+                  </div>
+                </div>
+                <div class="seating-config-row">
+                  <span class="seating-config-label">Seats / table</span>
+                  <div class="stepper">
+                    <button class="stepper-btn" id="c-seats-dec">&#8722;</button>
+                    <span class="stepper-val" id="c-seats-count">8</span>
+                    <button class="stepper-btn" id="c-seats-inc">&#43;</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Add guests -->
+              <p class="sidebar-section-title" style="margin-top:8px">Add Guests</p>
               <div class="seating-input-row">
                 <input id="c-guest-input" type="text" placeholder="Guest name..." maxlength="40">
                 <button class="btn btn-primary btn-sm" id="c-guest-add">Add</button>
@@ -438,6 +489,29 @@
         <div class="manage-item"><div class="m-avatar-sm lavender">A</div><div><strong>Ada &amp; Leon</strong><span class="muted sm">Aug 15</span></div><button class="btn btn-ghost btn-tiny danger">Blacklist</button></div>
         <div class="manage-item"><div class="m-avatar-sm mint">J</div><div><strong>Jill &amp; Carlos</strong><span class="muted sm">Oct 3</span></div><button class="btn btn-ghost btn-tiny danger">Blacklist</button></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══ AI ASSISTANT (floating) ═══ -->
+  <button class="ai-fab hidden" id="c-ai-fab" title="Ask AI Assistant">
+    <span class="ai-fab-icon">&#10022;</span>
+  </button>
+
+  <div class="ai-panel hidden" id="c-ai-panel">
+    <div class="ai-panel-head">
+      <div class="ai-panel-title">
+        <div class="ai-panel-avatar">&#10022;</div>
+        <div>
+          <strong>AI Wedding Planner</strong>
+          <p class="muted sm" style="margin:1px 0 0">Ask me anything</p>
+        </div>
+      </div>
+      <button class="icon-close" id="c-ai-panel-close">&times;</button>
+    </div>
+    <div class="ai-panel-feed" id="c-ai-panel-feed"></div>
+    <div class="ai-panel-composer">
+      <input id="c-ai-panel-input" type="text" placeholder="Vendors, budget, timeline, seating…" maxlength="300">
+      <button class="btn btn-primary btn-sm" id="c-ai-panel-send">&#10148;</button>
     </div>
   </div>
 
