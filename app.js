@@ -9,6 +9,10 @@ const STOP_WORDS = new Set(["a","an","and","are","as","at","be","by","for","from
 const BACKEND_URL = "http://192.168.0.149:5000";
 let backendOnline = false;
 
+// ── AI key (direct OpenAI fallback) ───────────────────────────────────────────
+function getApiKey() { return localStorage.getItem("wedboard:openai_key") || ""; }
+function saveApiKey(k) { k ? localStorage.setItem("wedboard:openai_key", k) : localStorage.removeItem("wedboard:openai_key"); }
+
 const state = {
   currentUser: null,
   joined: false,
@@ -166,6 +170,7 @@ function getCoupleWeddingName() {
 
 function showCoupleDash() {
   showView("couple");
+  document.getElementById("c-ai-fab").classList.remove("hidden");
   const u = state.currentUser;
   document.getElementById("c-dd-avatar").textContent = u.username.charAt(0).toUpperCase();
   const display = (u.profile.partner1 && u.profile.partner2) ? `${u.profile.partner1} & ${u.profile.partner2}` : u.username;
@@ -232,6 +237,7 @@ function openSlide(panelId, overlayId) { document.getElementById(panelId).classL
 function closeSlide(panelId, overlayId) { document.getElementById(panelId).classList.add("hidden"); document.getElementById(overlayId).classList.add("hidden"); }
 
 document.getElementById("c-kb-btn").onclick = () => { document.getElementById("c-settings-menu").classList.add("hidden"); openSlide("c-kb-panel", "c-overlay"); };
+document.getElementById("c-configure-ai-btn").onclick = () => { document.getElementById("c-settings-menu").classList.add("hidden"); openAiKeyModal(); };
 document.getElementById("c-kb-close").onclick = () => closeSlide("c-kb-panel", "c-overlay");
 document.getElementById("c-manage-vendors").onclick = () => { document.getElementById("c-settings-menu").classList.add("hidden"); openSlide("c-manage-panel", "c-overlay"); };
 document.getElementById("c-manage-close").onclick = () => closeSlide("c-manage-panel", "c-overlay");
@@ -406,7 +412,10 @@ function doLogout() {
     else saveHistory(state.currentUser.id, state.cohort, state.messages);
   }
   state.currentUser = null; state.joined = false; state.messages = []; state.resources = []; state.chunks = []; state.userId = null; state.cohortId = null; state.activeVendorChat = null;
-  localStorage.removeItem("wedboard:session"); showView("landing");
+  localStorage.removeItem("wedboard:session");
+  document.getElementById("c-ai-fab").classList.add("hidden");
+  document.getElementById("c-ai-panel").classList.add("hidden");
+  showView("landing");
 }
 
 // Typing indicator
@@ -440,18 +449,65 @@ function addDocumentFromText(name, text) { const cl = text.trim(); if (!cl) retu
 function respondToAi(q) {
   if (!q) { addMessage("ai", "AI Assistant", "Ask a question after `@ai`."); return; }
   const rl = getRetLabel(); rl.textContent = "Querying...";
-  if (backendOnline && state.cohortId) {
-    showTyping(); state.aiStreaming = true;
-    fetch(`${BACKEND_URL}/api/ai-query-stream`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cohort_id: state.cohortId, question: q, user_id: state.userId }) })
-      .then(res => { if (!res.ok) throw new Error(); const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "", full = "", srcs = [], node = null; const feed = getFeed();
-        function proc(t) { buf += t; const lines = buf.split("\n"); buf = lines.pop(); for (const l of lines) { if (!l.startsWith("data: ")) continue; try { const e = JSON.parse(l.slice(6)); if (e.type === "sources") srcs = e.sources || []; if (e.type === "chunk") { if (!node) { removeTyping(); const tpl = document.getElementById("msg-tpl"); node = tpl.content.firstElementChild.cloneNode(true); node.classList.add("ai"); node.querySelector(".msg-author").textContent = "AI Assistant"; node.querySelector(".msg-time").textContent = fmtTime(new Date()); feed.appendChild(node); } full += e.content; node.querySelector(".msg-text").innerHTML = renderMd(full); feed.scrollTop = feed.scrollHeight; } if (e.type === "done") { if (srcs.length) { full += `\n\n*Sources: ${srcs.join(", ")}*`; if (node) node.querySelector(".msg-text").innerHTML = renderMd(full); } state.messages.push({ id: crypto.randomUUID(), type: "ai", author: "AI Assistant", text: full, time: new Date() }); persistHistory(); rl.textContent = srcs.length ? "Grounded" : "General"; state.aiStreaming = false; } } catch {} } }
-        function pump() { return reader.read().then(({ done, value }) => { if (done) { if (buf.trim()) proc("\n"); state.aiStreaming = false; removeTyping(); return; } proc(dec.decode(value, { stream: true })); return pump(); }); }
-        return pump();
-      }).catch(() => { removeTyping(); state.aiStreaming = false; rl.textContent = "Error"; addMessage("ai", "AI Assistant", "Backend error."); });
-    return;
-  }
-  showTyping();
-  setTimeout(() => { removeTyping(); const res = searchKB(q); rl.textContent = res.length ? "Grounded" : "No matches"; if (!res.length) { addMessage("ai", "AI Assistant", "No content found. Upload a doc first."); return; } addMessage("ai", "AI Assistant", buildAnswer(q, res[0], res[1])); }, 450);
+  const messages = buildAIMessages(q);
+
+  // Vendor-enriched backend question for Flask context
+  const vendorName = state.activeVendorChat;
+  const vendorBtn = vendorName
+    ? document.querySelector(`.c-vendor-btn[data-vendor="${vendorName.replace(/"/g, '\\"')}"]`)
+    : null;
+  const vendorCat = vendorBtn?.dataset?.cat || "";
+  const backendQ = (vendorName && vendorCat) ? `[Vendor: ${vendorName} (${vendorCat})] ${q}` : q;
+
+  const feed = getFeed();
+  let node = null, full = "";
+  state.aiStreaming = true;
+
+  dispatchAI(messages, backendQ, {
+    showTypingFn: showTyping,
+    removeTypingFn: removeTyping,
+    onChunk(chunk) {
+      if (!node) {
+        removeTyping();
+        const tpl = document.getElementById("msg-tpl");
+        node = tpl.content.firstElementChild.cloneNode(true);
+        node.classList.add("ai");
+        node.querySelector(".msg-author").textContent = "AI Assistant";
+        node.querySelector(".msg-time").textContent = fmtTime(new Date());
+        feed.appendChild(node);
+      }
+      full += chunk;
+      node.querySelector(".msg-text").innerHTML = renderMd(full);
+      feed.scrollTop = feed.scrollHeight;
+    },
+    onDone(sources) {
+      removeTyping();
+      if (sources && sources.length && node) {
+        full += `\n\n*Sources: ${sources.join(", ")}*`;
+        node.querySelector(".msg-text").innerHTML = renderMd(full);
+      }
+      state.messages.push({ id: crypto.randomUUID(), type: "ai", author: "AI Assistant", text: full || "Done.", time: new Date() });
+      persistHistory();
+      rl.textContent = (sources && sources.length) ? "Grounded" : "AI";
+      state.aiStreaming = false;
+    },
+    onError(err) {
+      removeTyping();
+      state.aiStreaming = false;
+      if (err === "no_key") {
+        const hits = searchKB(q);
+        rl.textContent = hits.length ? "Grounded" : "Local";
+        if (hits.length && hits[0].score > 0.12) {
+          addMessage("ai", "AI Assistant", buildAnswer(q, hits[0], hits[1]));
+        } else {
+          addMessage("ai", "AI Assistant", aiLocalResponse(q) + "\n\n---\n*Add an OpenAI API key in **Settings → Configure AI** for live AI responses.*");
+        }
+      } else {
+        rl.textContent = "Error";
+        addMessage("ai", "AI Assistant", `**AI error:** ${err}`);
+      }
+    }
+  });
 }
 
 function generateDocument(prompt) {
@@ -489,6 +545,142 @@ async function checkBackend() { try { const r = await fetch(`${BACKEND_URL}/api/
 async function apiPost(path, body) { const r = await fetch(`${BACKEND_URL}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function apiGet(path) { const r = await fetch(`${BACKEND_URL}${path}`); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 
+// ── Build vendor-aware AI message array ───────────────────────────────────────
+// chatHistory: array of {type, author, text} — defaults to state.messages
+function buildAIMessages(question, chatHistory) {
+  const msgs = chatHistory !== undefined ? chatHistory : state.messages;
+  const u = state.currentUser;
+  const profile = u?.profile || {};
+  const vendorName = state.activeVendorChat || null;
+  const vendorBtn  = vendorName
+    ? document.querySelector(`.c-vendor-btn[data-vendor="${vendorName.replace(/"/g, '\\"')}"]`)
+    : null;
+  const vendorCat = vendorBtn?.dataset?.cat || "";
+
+  // ── System prompt ──────────────────────────────────────────────────────────
+  let sys = "You are an expert AI wedding planning assistant embedded in WedBoard, an elegant wedding coordination platform. You have deep knowledge of wedding planning: vendor coordination, budgets, timelines, etiquette, seating, florals, catering, photography, music, and stationery.\n\n";
+
+  // Wedding profile context
+  const coupleName = [profile.partner1, profile.partner2].filter(Boolean).join(" & ");
+  if (coupleName) sys += `COUPLE: ${coupleName}\n`;
+  if (profile.weddingDate) sys += `WEDDING DATE: ${profile.weddingDate}\n`;
+  if (profile.venue)       sys += `VENUE: ${profile.venue}\n`;
+  if (profile.guestCount)  sys += `GUEST COUNT: ${profile.guestCount}\n`;
+  if (profile.style)       sys += `STYLE: ${profile.style}\n`;
+
+  // Vendor context — most important for @ai in a vendor chat
+  if (vendorName && vendorCat) {
+    sys += `\nCURRENT VENDOR CONVERSATION: ${vendorName} (${vendorCat})\n`;
+    sys += `The couple is communicating with their ${vendorCat}. Focus your answer on ${vendorCat.toLowerCase()}-specific advice and this vendor relationship. `;
+    sys += `If the user asks what to discuss or ask, suggest relevant ${vendorCat.toLowerCase()} consultation questions.\n`;
+  }
+
+  sys += "\nFormat responses with markdown (bold, bullets, headings). Be concise, warm, and actionable. Never fabricate specific vendor pricing, availability, or contact details.";
+
+  const result = [{ role: "system", content: sys }];
+
+  // ── Recent conversation history (last 8 non-system messages) ──────────────
+  const recent = msgs.filter(m => m.type !== "system").slice(-8);
+  for (const m of recent) {
+    result.push({
+      role: m.type === "ai" ? "assistant" : "user",
+      content: m.type === "ai" ? m.text : `${m.author}: ${m.text}`
+    });
+  }
+
+  result.push({ role: "user", content: question });
+  return result;
+}
+
+// ── Direct OpenAI streaming (SSE) ─────────────────────────────────────────────
+// onChunk(text), onDone(sources=[]), onError(msg)
+async function streamFromOpenAI(messages, onChunk, onDone, onError) {
+  const key = getApiKey();
+  if (!key) { onError("no_key"); return; }
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+      body: JSON.stringify({ model: "gpt-4o-mini", messages, stream: true, max_tokens: 900, temperature: 0.5 })
+    });
+    if (!res.ok) {
+      let msg = `OpenAI API error (${res.status})`;
+      try { const j = await res.json(); msg = j.error?.message || msg; } catch {}
+      onError(msg); return;
+    }
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "", done = false;
+    const proc = (t) => {
+      buf += t;
+      const lines = buf.split("\n"); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const raw = line.slice(6).trim();
+        if (raw === "[DONE]") { done = true; onDone([]); return; }
+        try { const c = JSON.parse(raw)?.choices?.[0]?.delta?.content; if (c) onChunk(c); } catch {}
+      }
+    };
+    const pump = () => reader.read().then(({ done: d, value }) => {
+      if (d) { if (!done) onDone([]); return; }
+      proc(dec.decode(value, { stream: true }));
+      return pump();
+    });
+    await pump();
+  } catch (e) { onError(e.message || "Network error"); }
+}
+
+// ── Unified AI dispatch: backend → direct OpenAI → local ─────────────────────
+// callbacks: { onChunk, onDone, onError, showTypingFn, removeTypingFn }
+function dispatchAI(messages, backendQuestion, callbacks) {
+  const { onChunk, onDone, onError, showTypingFn, removeTypingFn } = callbacks;
+  showTypingFn();
+
+  // ── Tier 1: Flask backend (SSE) ───────────────────────────────────────────
+  if (backendOnline && state.cohortId) {
+    fetch(`${BACKEND_URL}/api/ai-query-stream`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cohort_id: state.cohortId, question: backendQuestion, user_id: state.userId })
+    }).then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const reader = res.body.getReader(), dec = new TextDecoder();
+      let buf = "", srcs = [];
+      const proc = (t) => {
+        buf += t;
+        const lines = buf.split("\n"); buf = lines.pop();
+        for (const l of lines) {
+          if (!l.startsWith("data: ")) continue;
+          try {
+            const ev = JSON.parse(l.slice(6));
+            if (ev.type === "sources") srcs = ev.sources || [];
+            if (ev.type === "chunk")   onChunk(ev.content);
+            if (ev.type === "done")    onDone(srcs);
+          } catch {}
+        }
+      };
+      const pump = () => reader.read().then(({ done, value }) => {
+        if (done) { onDone(srcs); return; }
+        proc(dec.decode(value, { stream: true })); return pump();
+      });
+      return pump();
+    }).catch(() => {
+      // Backend failed — fall through to direct OpenAI
+      removeTypingFn();
+      streamFromOpenAI(messages, onChunk, onDone, onError);
+    });
+    return;
+  }
+
+  // ── Tier 2: Direct OpenAI API ─────────────────────────────────────────────
+  if (getApiKey()) {
+    streamFromOpenAI(messages, onChunk, onDone, onError);
+    return;
+  }
+
+  // ── Tier 3: Local fallback ────────────────────────────────────────────────
+  removeTypingFn();
+  onError("no_key");
+}
+
 // ═══ TAB NAVIGATION ═══════════════════════════════════════════════════════════
 document.querySelectorAll(".c-tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -504,30 +696,298 @@ document.querySelectorAll(".c-tab-btn").forEach(btn => {
 
 // ═══ DISCOVERY ════════════════════════════════════════════════════════════════
 const DISCOVERY_VENDORS = [
-  { id: "ghs", name: "Golden Hour Studio",  cat: "photographer", city: "San Francisco", rating: 4.9, reviews: 128, price: "$$$",  desc: "Award-winning photography capturing every magical moment.",         av: "G", color: "peach" },
-  { id: "pv",  name: "Petal & Vine",         cat: "florist",       city: "Oakland",       rating: 4.8, reviews: 94,  price: "$$",   desc: "Lush garden-style florals and custom floral installations.",        av: "P", color: "mint" },
-  { id: "bne", name: "Blue Note Events",     cat: "dj-music",      city: "San Jose",      rating: 4.7, reviews: 73,  price: "$$",   desc: "Keeping the dance floor packed since 2010.",                        av: "B", color: "sky" },
-  { id: "ht",  name: "Hearth Table",         cat: "caterer",       city: "San Francisco", rating: 4.9, reviews: 205, price: "$$$",  desc: "Farm-to-table cuisine for intimate and large weddings.",             av: "H", color: "lavender" },
-  { id: "ll",  name: "Lens & Light",         cat: "photographer",  city: "Berkeley",      rating: 4.6, reviews: 61,  price: "$$",   desc: "Natural light portraits with a candid documentary style.",           av: "L", color: "peach" },
-  { id: "bg",  name: "Bloom Garden",         cat: "florist",       city: "Palo Alto",     rating: 4.8, reviews: 47,  price: "$$$",  desc: "Luxury botanical arrangements for elegant weddings.",                av: "B", color: "mint" },
-  { id: "sw",  name: "Sweets by Sofia",      cat: "bakery",        city: "San Mateo",     rating: 5.0, reviews: 38,  price: "$$",   desc: "Handcrafted tiered cakes and custom dessert tables.",                av: "S", color: "blush" },
-  { id: "ep",  name: "Elegant Plate",        cat: "caterer",       city: "Fremont",       rating: 4.7, reviews: 112, price: "$$",   desc: "Modern fusion cuisine with impeccable presentation.",                av: "E", color: "lavender" },
-  { id: "wr",  name: "Willow Ridge Estate",  cat: "venue",         city: "Napa Valley",   rating: 4.9, reviews: 189, price: "$$$$", desc: "Stunning vineyard estate with panoramic valley views.",              av: "W", color: "sky" },
-  { id: "mk",  name: "Melody Keys",          cat: "dj-music",      city: "San Francisco", rating: 4.8, reviews: 55,  price: "$$",   desc: "Live music and DJ services for ceremony and reception.",             av: "M", color: "sky" },
-  { id: "gw",  name: "Grace & White",        cat: "planner",       city: "San Jose",      rating: 4.9, reviews: 83,  price: "$$$",  desc: "Full-service planning with an eye for design and detail.",           av: "G", color: "lavender" },
-  { id: "rr",  name: "Rosewood Rentals",     cat: "venue",         city: "Santa Cruz",    rating: 4.7, reviews: 44,  price: "$$$",  desc: "Romantic coastal estate with garden ceremony and ballroom.",         av: "R", color: "blush" },
+  // ── NEW YORK ──────────────────────────────────────────────────────────────
+  // Photographers
+  { id:"ny-ph1", name:"Christian Oth Studio",        cat:"photographer", city:"New York",      rating:4.9, reviews:312, price:"$$$$", desc:"Refined editorial portraits at New York's most iconic venues.",             av:"C", color:"peach" },
+  { id:"ny-ph2", name:"KT Merry Photography",         cat:"photographer", city:"New York",      rating:4.9, reviews:245, price:"$$$$", desc:"Luminous fine-art photography for the most discerning New York couples.",   av:"K", color:"peach" },
+  { id:"ny-ph3", name:"Ryan Ray Photography",         cat:"photographer", city:"New York",      rating:4.8, reviews:187, price:"$$$$", desc:"Cinematic documentary storytelling with a timeless film quality.",          av:"R", color:"peach" },
+  { id:"ny-ph4", name:"Jasmine Lee Photography",      cat:"photographer", city:"New York",      rating:4.8, reviews:156, price:"$$$",  desc:"Warm, romantic portraits with a candid and editorial NYC sensibility.",    av:"J", color:"peach" },
+  { id:"ny-ph5", name:"Elisa B Photography",          cat:"photographer", city:"New York",      rating:4.7, reviews:134, price:"$$$",  desc:"Natural light wedding photography with a soft, dreamy New York aesthetic.", av:"E", color:"peach" },
+  // Florists
+  { id:"ny-fl1", name:"Putnam & Putnam",              cat:"florist",      city:"New York",      rating:4.9, reviews:198, price:"$$$$", desc:"Sculptural, lush floral designs that redefine New York wedding luxury.",    av:"P", color:"mint" },
+  { id:"ny-fl2", name:"Saipua",                       cat:"florist",      city:"New York",      rating:4.8, reviews:143, price:"$$$",  desc:"Wild, romantic botanicals grown on their own Hudson Valley farm.",          av:"S", color:"mint" },
+  { id:"ny-fl3", name:"Lewis Miller Design",          cat:"florist",      city:"New York",      rating:4.9, reviews:112, price:"$$$$", desc:"Theatrical floral installations that transform entire event spaces.",        av:"L", color:"mint" },
+  { id:"ny-fl4", name:"Flower Girl NYC",              cat:"florist",      city:"New York",      rating:4.7, reviews:98,  price:"$$$",  desc:"Minimalist modern botanicals for the fashion-forward NYC couple.",          av:"F", color:"mint" },
+  { id:"ny-fl5", name:"Jasmine M Events",             cat:"florist",      city:"New York",      rating:4.8, reviews:87,  price:"$$$$", desc:"Opulent garden-to-ballroom designs for grand New York celebrations.",       av:"J", color:"mint" },
+  // Caterers
+  { id:"ny-ca1", name:"Abigail Kirsch Catering",      cat:"caterer",      city:"New York",      rating:4.9, reviews:456, price:"$$$$", desc:"Legendary New York catering with flawless execution since 1975.",           av:"A", color:"lavender" },
+  { id:"ny-ca2", name:"Great Performances NYC",       cat:"caterer",      city:"New York",      rating:4.8, reviews:312, price:"$$$",  desc:"Farm-to-table cuisine celebrating 40 years of New York event excellence.",  av:"G", color:"lavender" },
+  { id:"ny-ca3", name:"Robbins Wolfe Eventeurs",      cat:"caterer",      city:"New York",      rating:4.9, reviews:234, price:"$$$$", desc:"Sophisticated menus by James Beard–nominated chefs for elite events.",      av:"R", color:"lavender" },
+  { id:"ny-ca4", name:"Olivier Cheng Catering",       cat:"caterer",      city:"New York",      rating:4.8, reviews:178, price:"$$$$", desc:"European-inspired fine dining for New York's most prestigious weddings.",   av:"O", color:"lavender" },
+  { id:"ny-ca5", name:"Rock Paper Scissors Catering", cat:"caterer",      city:"New York",      rating:4.7, reviews:145, price:"$$$",  desc:"Creative seasonal menus with bold culinary storytelling and custom plating.", av:"R", color:"lavender" },
+  // DJ / Music
+  { id:"ny-dj1", name:"Scott Stander & Associates",   cat:"dj-music",     city:"New York",      rating:4.9, reviews:198, price:"$$$$", desc:"New York's premier entertainment agency for luxury weddings and galas.",     av:"S", color:"sky" },
+  { id:"ny-dj2", name:"DJ Reach Entertainment",       cat:"dj-music",     city:"New York",      rating:4.8, reviews:167, price:"$$$",  desc:"Sophisticated DJ known for seamless sets that keep every guest dancing.",   av:"D", color:"sky" },
+  { id:"ny-dj3", name:"Melody & Moonlight Agency",    cat:"dj-music",     city:"New York",      rating:4.8, reviews:143, price:"$$$",  desc:"Live music and DJ fusion services for ceremony and reception magic.",       av:"M", color:"sky" },
+  { id:"ny-dj4", name:"Marek Entertainment NYC",      cat:"dj-music",     city:"New York",      rating:4.7, reviews:112, price:"$$$",  desc:"High-energy sets blending chart hits and timeless wedding classics.",       av:"M", color:"sky" },
+  { id:"ny-dj5", name:"Spin Entertainment NYC",       cat:"dj-music",     city:"New York",      rating:4.7, reviews:98,  price:"$$",   desc:"Boutique DJ collective curating unforgettable musical journeys.",           av:"S", color:"sky" },
+  // Planners
+  { id:"ny-pl1", name:"Colin Cowie Weddings",         cat:"planner",      city:"New York",      rating:5.0, reviews:134, price:"$$$$", desc:"The world's most iconic luxury planner to royalty and A-list celebrities.", av:"C", color:"blush" },
+  { id:"ny-pl2", name:"Marcy Blum Associates",        cat:"planner",      city:"New York",      rating:4.9, reviews:187, price:"$$$$", desc:"New York's most trusted full-service event planning for 30 years.",          av:"M", color:"blush" },
+  { id:"ny-pl3", name:"Mindy Weiss NY",               cat:"planner",      city:"New York",      rating:4.9, reviews:212, price:"$$$$", desc:"Meticulous planning that turns your grandest vision into flawless reality.",  av:"M", color:"blush" },
+  { id:"ny-pl4", name:"Michelle Rago Ltd",            cat:"planner",      city:"New York",      rating:4.8, reviews:156, price:"$$$$", desc:"Award-winning destination and New York wedding design since 2002.",          av:"M", color:"blush" },
+  { id:"ny-pl5", name:"Tara Guerard Soiree NY",       cat:"planner",      city:"New York",      rating:4.8, reviews:98,  price:"$$$",  desc:"Story-driven, design-forward planning with a refined personal touch.",       av:"T", color:"blush" },
+  // Venues
+  { id:"ny-ve1", name:"The Plaza Hotel",              cat:"venue",        city:"New York",      rating:4.9, reviews:876, price:"$$$$", desc:"Manhattan's most iconic address with timeless Grand Ballroom grandeur.",     av:"P", color:"gold" },
+  { id:"ny-ve2", name:"Cipriani 42nd Street",         cat:"venue",        city:"New York",      rating:4.9, reviews:543, price:"$$$$", desc:"Soaring Beaux-Arts ceilings and marble columns in Midtown Manhattan.",       av:"C", color:"gold" },
+  { id:"ny-ve3", name:"The Rainbow Room",             cat:"venue",        city:"New York",      rating:4.9, reviews:412, price:"$$$$", desc:"65th-floor Art Deco grandeur with unmatched Manhattan skyline views.",       av:"R", color:"gold" },
+  { id:"ny-ve4", name:"Gotham Hall NYC",              cat:"venue",        city:"New York",      rating:4.8, reviews:312, price:"$$$$", desc:"Historic neoclassical banking hall — dramatic, towering, unforgettable.",    av:"G", color:"gold" },
+  { id:"ny-ve5", name:"The Bowery Hotel",             cat:"venue",        city:"New York",      rating:4.7, reviews:234, price:"$$$",  desc:"Industrial-chic boutique hotel with a lush garden and intimate ballroom.",  av:"B", color:"gold" },
+  // Bakery
+  { id:"ny-bk1", name:"Ron Ben-Israel Cakes",         cat:"bakery",       city:"New York",      rating:4.9, reviews:312, price:"$$$$", desc:"Sculpted edible masterpieces by New York's most celebrated cake artist.",    av:"R", color:"rose" },
+  { id:"ny-bk2", name:"Sylvia Weinstock Cakes",       cat:"bakery",       city:"New York",      rating:4.9, reviews:267, price:"$$$$", desc:"Legendary lifelike sugar flowers and architectural tiers since 1975.",        av:"S", color:"rose" },
+  { id:"ny-bk3", name:"Sugar Flower Cake Shop",       cat:"bakery",       city:"New York",      rating:4.8, reviews:198, price:"$$$$", desc:"Hand-painted sculpted sugar art cakes of breathtaking gallery quality.",     av:"S", color:"rose" },
+  { id:"ny-bk4", name:"Lael Cakes NYC",               cat:"bakery",       city:"New York",      rating:4.8, reviews:156, price:"$$$",  desc:"Modern, minimalist custom cakes with architectural elegance and panache.",   av:"L", color:"rose" },
+  { id:"ny-bk5", name:"Nine Cakes",                   cat:"bakery",       city:"New York",      rating:4.7, reviews:134, price:"$$$",  desc:"Seasonal flavors and hand-sculpted botanicals on sleek, modern tiers.",     av:"N", color:"rose" },
+
+  // ── LOS ANGELES ───────────────────────────────────────────────────────────
+  // Photographers
+  { id:"la-ph1", name:"Jose Villa Photography",       cat:"photographer", city:"Los Angeles",   rating:4.9, reviews:387, price:"$$$$", desc:"Sun-drenched fine-art photography with an ethereal California editorial vision.", av:"J", color:"peach" },
+  { id:"la-ph2", name:"Kurt Boomer Photography",      cat:"photographer", city:"Los Angeles",   rating:4.9, reviews:256, price:"$$$$", desc:"Cinematic storytelling with a refined editorial sensibility and bold light.", av:"K", color:"peach" },
+  { id:"la-ph3", name:"Braedon Flynn Photography",    cat:"photographer", city:"Los Angeles",   rating:4.8, reviews:198, price:"$$$$", desc:"Emotive documentary photography for luxury California destination weddings.", av:"B", color:"peach" },
+  { id:"la-ph4", name:"Sasha Gulish Photography",     cat:"photographer", city:"Los Angeles",   rating:4.8, reviews:167, price:"$$$",  desc:"Modern, fashion-forward photography for the style-conscious LA couple.",    av:"S", color:"peach" },
+  { id:"la-ph5", name:"Elizabeth Messina",            cat:"photographer", city:"Los Angeles",   rating:4.9, reviews:234, price:"$$$$", desc:"Poetic, luminous imagery that captures the soul of every love story.",       av:"E", color:"peach" },
+  // Florists
+  { id:"la-fl1", name:"Mark's Garden",                cat:"florist",      city:"Los Angeles",   rating:4.9, reviews:312, price:"$$$$", desc:"Hollywood institution crafting spectacular floral environments since 1981.",   av:"M", color:"mint" },
+  { id:"la-fl2", name:"Mindy Rice Floral Design",     cat:"florist",      city:"Los Angeles",   rating:4.9, reviews:198, price:"$$$$", desc:"Organic, garden-gathered botanicals with an elevated California aesthetic.",  av:"M", color:"mint" },
+  { id:"la-fl3", name:"Holly Flora LA",               cat:"florist",      city:"Los Angeles",   rating:4.8, reviews:167, price:"$$$",  desc:"Wild, romantic florals overflowing with seasonal blooms and artful abandon.", av:"H", color:"mint" },
+  { id:"la-fl4", name:"White Lilac Inc",              cat:"florist",      city:"Los Angeles",   rating:4.7, reviews:134, price:"$$$",  desc:"Minimalist luxury florals with a distinctly Californian, spa-like serenity.", av:"W", color:"mint" },
+  { id:"la-fl5", name:"Bloom Box LA",                 cat:"florist",      city:"Los Angeles",   rating:4.8, reviews:112, price:"$$$$", desc:"Studio-fresh sculptural arrangements for Hollywood's most sought-after events.", av:"B", color:"mint" },
+  // Caterers
+  { id:"la-ca1", name:"Wolfgang Puck Catering",       cat:"caterer",      city:"Los Angeles",   rating:4.9, reviews:678, price:"$$$$", desc:"Iconic California cuisine by Hollywood's most celebrated chef.",             av:"W", color:"lavender" },
+  { id:"la-ca2", name:"Patina Catering",              cat:"caterer",      city:"Los Angeles",   rating:4.8, reviews:423, price:"$$$$", desc:"Museum-quality dining experiences in LA's most prestigious venues.",          av:"P", color:"lavender" },
+  { id:"la-ca3", name:"Along Came Mary",              cat:"caterer",      city:"Los Angeles",   rating:4.8, reviews:387, price:"$$$",  desc:"Creative, show-stopping event catering with 40 years of LA excellence.",     av:"A", color:"lavender" },
+  { id:"la-ca4", name:"Gourmet Celebrations",         cat:"caterer",      city:"Los Angeles",   rating:4.7, reviews:234, price:"$$$",  desc:"Globally-inspired seasonal menus for luxury weddings and celebrity events.", av:"G", color:"lavender" },
+  { id:"la-ca5", name:"Design Cuisine LA",            cat:"caterer",      city:"Los Angeles",   rating:4.9, reviews:198, price:"$$$$", desc:"Artisanal seasonal menus with dramatic tablescapes and custom presentation.", av:"D", color:"lavender" },
+  // DJ / Music
+  { id:"la-dj1", name:"Ira Westreich Entertainment",  cat:"dj-music",     city:"Los Angeles",   rating:4.9, reviews:245, price:"$$$$", desc:"Hollywood's premier music agency for elite weddings and celebrity events.",   av:"I", color:"sky" },
+  { id:"la-dj2", name:"Modern Music LA",              cat:"dj-music",     city:"Los Angeles",   rating:4.8, reviews:178, price:"$$$",  desc:"Boutique DJ agency specializing in luxury LA weddings since 2005.",          av:"M", color:"sky" },
+  { id:"la-dj3", name:"DJ Liquid Todd",               cat:"dj-music",     city:"Los Angeles",   rating:4.8, reviews:156, price:"$$$",  desc:"Award-winning DJ blending electronic and timeless classics for a packed floor.", av:"D", color:"sky" },
+  { id:"la-dj4", name:"West Coast DJ Entertainment",  cat:"dj-music",     city:"Los Angeles",   rating:4.7, reviews:134, price:"$$$",  desc:"Full-service music production with lighting and live musician add-ons.",     av:"W", color:"sky" },
+  { id:"la-dj5", name:"DJ Steve Ito",                 cat:"dj-music",     city:"Los Angeles",   rating:4.7, reviews:112, price:"$$",   desc:"Versatile DJ celebrated for seamless multi-genre sets at any wedding.",      av:"D", color:"sky" },
+  // Planners
+  { id:"la-pl1", name:"Mindy Weiss Party Consultants",cat:"planner",      city:"Los Angeles",   rating:4.9, reviews:312, price:"$$$$", desc:"Celebrity wedding planner crafting magazine-worthy events for A-listers.",   av:"M", color:"blush" },
+  { id:"la-pl2", name:"Lisa Vorce Events",            cat:"planner",      city:"Los Angeles",   rating:4.9, reviews:198, price:"$$$$", desc:"Boutique luxury planning with a deeply personal, design-forward approach.",  av:"L", color:"blush" },
+  { id:"la-pl3", name:"Revelry Event Design",         cat:"planner",      city:"Los Angeles",   rating:4.8, reviews:167, price:"$$$",  desc:"Bold, theatrical event design transforming spaces into unforgettable worlds.", av:"R", color:"blush" },
+  { id:"la-pl4", name:"Yifat Oren & Associates",      cat:"planner",      city:"Los Angeles",   rating:4.8, reviews:145, price:"$$$$", desc:"Detail-obsessed luxury planner for LA's most intimate and grand celebrations.", av:"Y", color:"blush" },
+  { id:"la-pl5", name:"White Lilac Events",           cat:"planner",      city:"Los Angeles",   rating:4.7, reviews:123, price:"$$$",  desc:"Effortlessly elegant California wedding planning for every style of love.",  av:"W", color:"blush" },
+  // Venues
+  { id:"la-ve1", name:"Greystone Mansion",            cat:"venue",        city:"Los Angeles",   rating:4.9, reviews:456, price:"$$$$", desc:"Historic 55-room Beverly Hills estate with manicured garden terraces.",      av:"G", color:"gold" },
+  { id:"la-ve2", name:"Vibiana Downtown LA",          cat:"venue",        city:"Los Angeles",   rating:4.9, reviews:345, price:"$$$$", desc:"Restored 1876 cathedral with soaring ceilings in the heart of downtown.",    av:"V", color:"gold" },
+  { id:"la-ve3", name:"The Beverly Hills Hotel",      cat:"venue",        city:"Los Angeles",   rating:4.9, reviews:678, price:"$$$$", desc:"The iconic Pink Palace — legendary ballrooms with true Hollywood glamour.",  av:"B", color:"gold" },
+  { id:"la-ve4", name:"Calamigos Ranch",              cat:"venue",        city:"Los Angeles",   rating:4.8, reviews:312, price:"$$$$", desc:"Private 280-acre Malibu ranch estate nestled in the Santa Monica Mountains.", av:"C", color:"gold" },
+  { id:"la-ve5", name:"Saddlerock Ranch",             cat:"venue",        city:"Los Angeles",   rating:4.7, reviews:234, price:"$$$",  desc:"Rolling Malibu vineyard estate with mountain views and rustic-chic charm.",  av:"S", color:"gold" },
+  // Bakery
+  { id:"la-bk1", name:"Hansen's Cakes",               cat:"bakery",       city:"Los Angeles",   rating:4.9, reviews:423, price:"$$",   desc:"Hollywood's legendary cake studio since 1959, beloved by generations of couples.", av:"H", color:"rose" },
+  { id:"la-bk2", name:"Valerie Confections",          cat:"bakery",       city:"Los Angeles",   rating:4.8, reviews:267, price:"$$$",  desc:"Architecturally inspired tiers with exquisite hand-painted seasonal details.", av:"V", color:"rose" },
+  { id:"la-bk3", name:"Cake Divas",                   cat:"bakery",       city:"Los Angeles",   rating:4.9, reviews:312, price:"$$$",  desc:"Custom sculptural cakes featured in 15 TV shows and countless luxury weddings.", av:"C", color:"rose" },
+  { id:"la-bk4", name:"Sweet Lady Jane",              cat:"bakery",       city:"Los Angeles",   rating:4.7, reviews:345, price:"$$",   desc:"Charming artisan cakes with hand-painted florals and fresh seasonal layers.",  av:"S", color:"rose" },
+  { id:"la-bk5", name:"The Butter End Cakery",        cat:"bakery",       city:"Los Angeles",   rating:4.7, reviews:198, price:"$$$",  desc:"Whimsical, hand-crafted cakes with vibrant artistic expression and bold flavor.", av:"B", color:"rose" },
+
+  // ── CHICAGO ───────────────────────────────────────────────────────────────
+  // Photographers
+  { id:"ch-ph1", name:"Eric Boneske Photography",     cat:"photographer", city:"Chicago",       rating:4.9, reviews:234, price:"$$$",  desc:"Dynamic, editorial wedding photography at Chicago's most stunning venues.",  av:"E", color:"peach" },
+  { id:"ch-ph2", name:"Bozena Voytko Photography",    cat:"photographer", city:"Chicago",       rating:4.8, reviews:187, price:"$$$",  desc:"Romantic fine-art portraits with a soft, timeless Chicago photographic style.", av:"B", color:"peach" },
+  { id:"ch-ph3", name:"Katie & Sarah Photography",    cat:"photographer", city:"Chicago",       rating:4.9, reviews:198, price:"$$",   desc:"Candid, joyful wedding storytelling for modern Chicago couples.",            av:"K", color:"peach" },
+  { id:"ch-ph4", name:"Theresa Furey Photography",    cat:"photographer", city:"Chicago",       rating:4.8, reviews:156, price:"$$$",  desc:"Luminous light and heartfelt moments in a timeless editorial style.",        av:"T", color:"peach" },
+  { id:"ch-ph5", name:"Studio A Photography",         cat:"photographer", city:"Chicago",       rating:4.7, reviews:134, price:"$$",   desc:"Bold, modern wedding photography with a striking use of light and color.",   av:"S", color:"peach" },
+  // Florists
+  { id:"ch-fl1", name:"Belle Fleur Chicago",          cat:"florist",      city:"Chicago",       rating:4.8, reviews:167, price:"$$$$", desc:"European-inspired luxury florals for Chicago's most prestigious weddings.",  av:"B", color:"mint" },
+  { id:"ch-fl2", name:"Kehoe Designs",                cat:"florist",      city:"Chicago",       rating:4.9, reviews:234, price:"$$$$", desc:"Grand-scale floral and décor transformations for the Midwest's finest events.", av:"K", color:"mint" },
+  { id:"ch-fl3", name:"Bough & Bower",                cat:"florist",      city:"Chicago",       rating:4.8, reviews:145, price:"$$$",  desc:"Wild, seasonal botanicals with a lush garden-gathered Chicago aesthetic.",   av:"B", color:"mint" },
+  { id:"ch-fl4", name:"Tablescapes Event Design",     cat:"florist",      city:"Chicago",       rating:4.7, reviews:112, price:"$$$",  desc:"Romantic, lush arrangements woven seamlessly into stunning tablescapes.",    av:"T", color:"mint" },
+  { id:"ch-fl5", name:"Flowers for Dreams",           cat:"florist",      city:"Chicago",       rating:4.7, reviews:198, price:"$$",   desc:"Affordable luxury florals with a social mission to give back locally.",      av:"F", color:"mint" },
+  // Caterers
+  { id:"ch-ca1", name:"Limelight Catering",           cat:"caterer",      city:"Chicago",       rating:4.9, reviews:312, price:"$$$$", desc:"Chicago's premier event caterer with three decades of culinary excellence.",  av:"L", color:"lavender" },
+  { id:"ch-ca2", name:"Blue Plate Catering",          cat:"caterer",      city:"Chicago",       rating:4.8, reviews:267, price:"$$$",  desc:"Creative American cuisine with seasonal menus and elegant presentation.",    av:"B", color:"lavender" },
+  { id:"ch-ca3", name:"Entertaining Company",         cat:"caterer",      city:"Chicago",       rating:4.8, reviews:198, price:"$$$",  desc:"Globally inspired menus and impeccable service for every Chicago wedding.",  av:"E", color:"lavender" },
+  { id:"ch-ca4", name:"Inspired Catering Chicago",    cat:"caterer",      city:"Chicago",       rating:4.7, reviews:167, price:"$$",   desc:"Fresh, handcrafted menus using locally sourced Midwest ingredients.",        av:"I", color:"lavender" },
+  { id:"ch-ca5", name:"Feast by Firelight",           cat:"caterer",      city:"Chicago",       rating:4.8, reviews:145, price:"$$$",  desc:"Hearth-fired and wood-smoked cuisine for couples who crave bold flavor.",    av:"F", color:"lavender" },
+  // DJ / Music
+  { id:"ch-dj1", name:"GIG Productions Chicago",      cat:"dj-music",     city:"Chicago",       rating:4.9, reviews:198, price:"$$$",  desc:"Award-winning agency representing Chicago's finest wedding DJs.",            av:"G", color:"sky" },
+  { id:"ch-dj2", name:"DJ Naeem Chicago",             cat:"dj-music",     city:"Chicago",       rating:4.8, reviews:156, price:"$$",   desc:"High-energy DJ known for seamless mixing across every genre and culture.",   av:"D", color:"sky" },
+  { id:"ch-dj3", name:"Chicago Entertainment Group",  cat:"dj-music",     city:"Chicago",       rating:4.8, reviews:178, price:"$$$",  desc:"Full-service music and lighting production for Chicago's luxury weddings.",  av:"C", color:"sky" },
+  { id:"ch-dj4", name:"DJ Capri Chicago",             cat:"dj-music",     city:"Chicago",       rating:4.7, reviews:134, price:"$$",   desc:"Sophisticated open-format DJ delivering unforgettable dance-floor energy.",  av:"D", color:"sky" },
+  { id:"ch-dj5", name:"Sound Advice DJ Services",     cat:"dj-music",     city:"Chicago",       rating:4.7, reviews:112, price:"$$",   desc:"Custom curated playlists and seamless transitions for every wedding vibe.",  av:"S", color:"sky" },
+  // Planners
+  { id:"ch-pl1", name:"Sterling Engagements",         cat:"planner",      city:"Chicago",       rating:4.9, reviews:178, price:"$$$$", desc:"Luxury full-service planning with a signature for grand, magazine-worthy events.", av:"S", color:"blush" },
+  { id:"ch-pl2", name:"Invision Events Chicago",      cat:"planner",      city:"Chicago",       rating:4.9, reviews:156, price:"$$$$", desc:"Creative, design-driven Chicago wedding planning with a bold artistic voice.", av:"I", color:"blush" },
+  { id:"ch-pl3", name:"Magnificent Events",           cat:"planner",      city:"Chicago",       rating:4.8, reviews:134, price:"$$$",  desc:"Thoughtful, personalized planning for every couple's unique Chicago vision.",  av:"M", color:"blush" },
+  { id:"ch-pl4", name:"Jubilee Events Chicago",       cat:"planner",      city:"Chicago",       rating:4.8, reviews:112, price:"$$$",  desc:"Bold event design and seamless logistics for the Midwest's most coveted weddings.", av:"J", color:"blush" },
+  { id:"ch-pl5", name:"Kara Lissa Events",            cat:"planner",      city:"Chicago",       rating:4.7, reviews:98,  price:"$$",   desc:"Intimate, detail-obsessed planning for couples who want every moment perfect.", av:"K", color:"blush" },
+  // Venues
+  { id:"ch-ve1", name:"The Geraghty",                 cat:"venue",        city:"Chicago",       rating:4.9, reviews:312, price:"$$$$", desc:"Chicago's most romantic venue — an art-filled landmark with lake views.",    av:"G", color:"gold" },
+  { id:"ch-ve2", name:"Chicago Cultural Center",      cat:"venue",        city:"Chicago",       rating:4.9, reviews:456, price:"$$$",  desc:"Iconic Tiffany glass domes and Venetian mosaics in a breathtaking civic palace.", av:"C", color:"gold" },
+  { id:"ch-ve3", name:"Bridgeport Art Center",        cat:"venue",        city:"Chicago",       rating:4.8, reviews:234, price:"$$$",  desc:"Industrial-chic rooftop and galleries with panoramic Chicago skyline views.",  av:"B", color:"gold" },
+  { id:"ch-ve4", name:"The Ivy Room Chicago",         cat:"venue",        city:"Chicago",       rating:4.8, reviews:198, price:"$$$$", desc:"Stunning ballroom with skylights, exposed brick and garden-inspired design.",  av:"I", color:"gold" },
+  { id:"ch-ve5", name:"River Roast Chicago",          cat:"venue",        city:"Chicago",       rating:4.7, reviews:167, price:"$$$",  desc:"Riverfront restaurant venue with panoramic Chicago River and skyline views.",  av:"R", color:"gold" },
+  // Bakery
+  { id:"ch-bk1", name:"Alliance Bakery",              cat:"bakery",       city:"Chicago",       rating:4.8, reviews:234, price:"$$$",  desc:"Artisan wedding cakes crafted with precision, love and bold creative flair.",  av:"A", color:"rose" },
+  { id:"ch-bk2", name:"Vanille Patisserie",           cat:"bakery",       city:"Chicago",       rating:4.9, reviews:312, price:"$$$",  desc:"French-inspired confections with breathtaking sugar flowers and elegant tiers.", av:"V", color:"rose" },
+  { id:"ch-bk3", name:"Bad Wolf Bakery",              cat:"bakery",       city:"Chicago",       rating:4.8, reviews:198, price:"$$",   desc:"Whimsical, scratch-made cakes with natural buttercream and seasonal flavors.",  av:"B", color:"rose" },
+  { id:"ch-bk4", name:"Sweet Mandy B's",              cat:"bakery",       city:"Chicago",       rating:4.7, reviews:267, price:"$",    desc:"Beloved Chicago bakery known for classic layers, vibrant color and pure joy.",  av:"S", color:"rose" },
+  { id:"ch-bk5", name:"Bittersweet Pastry Shop",      cat:"bakery",       city:"Chicago",       rating:4.8, reviews:189, price:"$$",   desc:"Elegant, French-inspired wedding cakes with a warm Chicago neighborhood soul.", av:"B", color:"rose" },
+
+  // ── MIAMI ─────────────────────────────────────────────────────────────────
+  // Photographers
+  { id:"mi-ph1", name:"Limelight Photography Miami",  cat:"photographer", city:"Miami",         rating:4.9, reviews:312, price:"$$$$", desc:"Luxury destination wedding photography with an editorial South Florida vision.", av:"L", color:"peach" },
+  { id:"mi-ph2", name:"Brandon Kidd Photography",     cat:"photographer", city:"Miami",         rating:4.8, reviews:234, price:"$$$$", desc:"Fine-art film photography with a warm, luminous Miami Beach aesthetic.",       av:"B", color:"peach" },
+  { id:"mi-ph3", name:"Kat Braman Photography",       cat:"photographer", city:"Miami",         rating:4.8, reviews:187, price:"$$$",  desc:"Romantic, natural-light portraits for Miami's most stylish couples.",         av:"K", color:"peach" },
+  { id:"mi-ph4", name:"Karrie Porter Bridal",         cat:"photographer", city:"Miami",         rating:4.7, reviews:156, price:"$$$",  desc:"Documentary-style storytelling with a vibrant Miami color palette.",          av:"K", color:"peach" },
+  { id:"mi-ph5", name:"Rafael Tongol Photography",    cat:"photographer", city:"Miami",         rating:4.9, reviews:178, price:"$$$$", desc:"Magazine-quality editorial photography for Miami's most exclusive weddings.",  av:"R", color:"peach" },
+  // Florists
+  { id:"mi-fl1", name:"Flowerbx Miami",               cat:"florist",      city:"Miami",         rating:4.8, reviews:178, price:"$$$$", desc:"Minimalist editorial florals using single-variety blooms in pure luxury.",     av:"F", color:"mint" },
+  { id:"mi-fl2", name:"Flora Fauna Miami",            cat:"florist",      city:"Miami",         rating:4.9, reviews:145, price:"$$$",  desc:"Tropical-infused luxury florals celebrating Miami's bold botanical abundance.", av:"F", color:"mint" },
+  { id:"mi-fl3", name:"Buds of Joy Miami",            cat:"florist",      city:"Miami",         rating:4.8, reviews:134, price:"$$$",  desc:"Lush, romantic arrangements with a distinctly Miami tropical elegance.",       av:"B", color:"mint" },
+  { id:"mi-fl4", name:"Eden Floral Design",           cat:"florist",      city:"Miami",         rating:4.7, reviews:112, price:"$$",   desc:"Vibrant, organic florals inspired by South Florida's natural landscape.",      av:"E", color:"mint" },
+  { id:"mi-fl5", name:"Flowers & Champagne",          cat:"florist",      city:"Miami",         rating:4.9, reviews:198, price:"$$$$", desc:"Lavish, over-the-top floral designs for Miami's most opulent celebrations.",   av:"F", color:"mint" },
+  // Caterers
+  { id:"mi-ca1", name:"Concept Cuisine Miami",        cat:"caterer",      city:"Miami",         rating:4.9, reviews:198, price:"$$$$", desc:"Avant-garde culinary experiences for Miami's most exclusive event spaces.",     av:"C", color:"lavender" },
+  { id:"mi-ca2", name:"Top Hat Catering",             cat:"caterer",      city:"Miami",         rating:4.8, reviews:312, price:"$$$",  desc:"South Florida's trusted caterer for luxury weddings since 1987.",             av:"T", color:"lavender" },
+  { id:"mi-ca3", name:"Social Catering & Events",     cat:"caterer",      city:"Miami",         rating:4.9, reviews:156, price:"$$$$", desc:"Globally inspired fine-dining menus by Miami's celebrated culinary team.",     av:"S", color:"lavender" },
+  { id:"mi-ca4", name:"Karla's Catering Miami",       cat:"caterer",      city:"Miami",         rating:4.8, reviews:234, price:"$$$",  desc:"Latin-fusion cuisine celebrating Miami's rich culinary cultural tapestry.",    av:"K", color:"lavender" },
+  { id:"mi-ca5", name:"Bakers Events Catering",       cat:"caterer",      city:"Miami",         rating:4.7, reviews:178, price:"$$$",  desc:"Fresh seafood-forward menus showcasing the finest of Florida's coast.",        av:"B", color:"lavender" },
+  // DJ / Music
+  { id:"mi-dj1", name:"DJ Irie",                      cat:"dj-music",     city:"Miami",         rating:4.9, reviews:234, price:"$$$$", desc:"Miami Heat's official DJ and South Florida's most sought-after entertainer.",  av:"D", color:"sky" },
+  { id:"mi-dj2", name:"MNDATORY Entertainment",       cat:"dj-music",     city:"Miami",         rating:4.8, reviews:178, price:"$$$",  desc:"Premier Miami DJ agency known for high-energy, culturally rich dance floors.",  av:"M", color:"sky" },
+  { id:"mi-dj3", name:"DJ Latin Prince",              cat:"dj-music",     city:"Miami",         rating:4.8, reviews:156, price:"$$$",  desc:"Latin and global fusion DJ creating electric, unforgettable wedding nights.",  av:"D", color:"sky" },
+  { id:"mi-dj4", name:"Sound Factory Miami",          cat:"dj-music",     city:"Miami",         rating:4.7, reviews:134, price:"$$$",  desc:"Full audio-visual production with world-class DJ talent and sound design.",   av:"S", color:"sky" },
+  { id:"mi-dj5", name:"Oceansound Entertainment",     cat:"dj-music",     city:"Miami",         rating:4.7, reviews:112, price:"$$",   desc:"Custom Miami DJ packages with live percussion and saxophone add-ons.",         av:"O", color:"sky" },
+  // Planners
+  { id:"mi-pl1", name:"Elegant Affairs Miami",        cat:"planner",      city:"Miami",         rating:4.9, reviews:198, price:"$$$$", desc:"Flawless luxury wedding planning for Miami's most high-profile couples.",      av:"E", color:"blush" },
+  { id:"mi-pl2", name:"Panache Events Miami",         cat:"planner",      city:"Miami",         rating:4.9, reviews:178, price:"$$$$", desc:"Bold, theatrical event design for couples who want the extraordinary.",         av:"P", color:"blush" },
+  { id:"mi-pl3", name:"Bliss Events Miami",           cat:"planner",      city:"Miami",         rating:4.8, reviews:167, price:"$$$",  desc:"Modern, design-forward planning with a signature South Florida flair.",        av:"B", color:"blush" },
+  { id:"mi-pl4", name:"One Fine Day Events Miami",    cat:"planner",      city:"Miami",         rating:4.8, reviews:145, price:"$$$",  desc:"Intimate, personalized wedding planning with an eye for every exquisite detail.", av:"O", color:"blush" },
+  { id:"mi-pl5", name:"Weddings by Paloma",           cat:"planner",      city:"Miami",         rating:4.7, reviews:123, price:"$$",   desc:"Boutique Miami wedding planning celebrating every couple's unique vision.",    av:"W", color:"blush" },
+  // Venues
+  { id:"mi-ve1", name:"Vizcaya Museum & Gardens",     cat:"venue",        city:"Miami",         rating:4.9, reviews:567, price:"$$$$", desc:"Breathtaking Italian Renaissance villa with Biscayne Bay waterfront gardens.",  av:"V", color:"gold" },
+  { id:"mi-ve2", name:"Faena Hotel Miami Beach",      cat:"venue",        city:"Miami",         rating:4.9, reviews:412, price:"$$$$", desc:"Ultra-luxury beachfront hotel with theatrical interiors by Baz Luhrmann.",    av:"F", color:"gold" },
+  { id:"mi-ve3", name:"The Biltmore Hotel",           cat:"venue",        city:"Miami",         rating:4.9, reviews:456, price:"$$$$", desc:"Iconic 1926 Mediterranean Revival estate with legendary Coral Gables ballrooms.", av:"B", color:"gold" },
+  { id:"mi-ve4", name:"Loews Miami Beach Hotel",      cat:"venue",        city:"Miami",         rating:4.8, reviews:334, price:"$$$",  desc:"Art Deco oceanfront grandeur with sweeping Atlantic views and expert service.", av:"L", color:"gold" },
+  { id:"mi-ve5", name:"The Kampong Garden",           cat:"venue",        city:"Miami",         rating:4.7, reviews:189, price:"$$$",  desc:"Lush tropical botanical garden with a private estate feel in Coconut Grove.", av:"K", color:"gold" },
+  // Bakery
+  { id:"mi-bk1", name:"Pastry Arts Bakery Miami",     cat:"bakery",       city:"Miami",         rating:4.9, reviews:234, price:"$$$",  desc:"Award-winning custom cakes with meticulous fondant artistry and bold flavors.", av:"P", color:"rose" },
+  { id:"mi-bk2", name:"Dolce Mia Cakes",              cat:"bakery",       city:"Miami",         rating:4.8, reviews:145, price:"$$$",  desc:"Italian-inspired luxury cakes with hand-crafted sugar flowers and elegant tiers.", av:"D", color:"rose" },
+  { id:"mi-bk3", name:"The Cake Spot Miami",          cat:"bakery",       city:"Miami",         rating:4.8, reviews:198, price:"$$$",  desc:"Custom Miami wedding cakes with bold tropical flavors and artistic flair.",    av:"C", color:"rose" },
+  { id:"mi-bk4", name:"Sugar Rush Bakery Miami",      cat:"bakery",       city:"Miami",         rating:4.7, reviews:167, price:"$$",   desc:"Fresh, scratch-baked wedding cakes with vibrant Miami-inspired flavors.",      av:"S", color:"rose" },
+  { id:"mi-bk5", name:"Lulu's Bakery Miami",          cat:"bakery",       city:"Miami",         rating:4.7, reviews:123, price:"$$",   desc:"Charming Miami institution beloved for fresh, flavorful layered wedding cakes.", av:"L", color:"rose" },
+
+  // ── NASHVILLE ─────────────────────────────────────────────────────────────
+  // Photographers
+  { id:"na-ph1", name:"Pattengale Photography",       cat:"photographer", city:"Nashville",     rating:4.9, reviews:287, price:"$$$$", desc:"Award-winning editorial photography capturing Nashville's most romantic weddings.", av:"P", color:"peach" },
+  { id:"na-ph2", name:"Kristyn Hogan Photography",    cat:"photographer", city:"Nashville",     rating:4.9, reviews:312, price:"$$$",  desc:"Nationally published, deeply personal storytelling for Southern weddings.",   av:"K", color:"peach" },
+  { id:"na-ph3", name:"Erin Wilson Photography",      cat:"photographer", city:"Nashville",     rating:4.8, reviews:198, price:"$$$",  desc:"Luminous, editorial film photography with a golden Tennessee warmth.",         av:"E", color:"peach" },
+  { id:"na-ph4", name:"Molly Lichten Photography",    cat:"photographer", city:"Nashville",     rating:4.8, reviews:156, price:"$$",   desc:"Candid, emotive documentary photography celebrating every real moment.",       av:"M", color:"peach" },
+  { id:"na-ph5", name:"Riverland Studios",            cat:"photographer", city:"Nashville",     rating:4.7, reviews:134, price:"$$",   desc:"Bold, modern wedding photography infused with Nashville's creative spirit.",   av:"R", color:"peach" },
+  // Florists
+  { id:"na-fl1", name:"Enchanted Florist Nashville",  cat:"florist",      city:"Nashville",     rating:4.9, reviews:234, price:"$$$",  desc:"Nashville's most-booked florist with lush, romantic garden-inspired designs.", av:"E", color:"mint" },
+  { id:"na-fl2", name:"Rosemary & Finch Floral",      cat:"florist",      city:"Nashville",     rating:4.9, reviews:198, price:"$$$",  desc:"Wild, ethereal florals inspired by Tennessee's rolling pastoral countryside.", av:"R", color:"mint" },
+  { id:"na-fl3", name:"Stems Nashville",              cat:"florist",      city:"Nashville",     rating:4.8, reviews:187, price:"$$",   desc:"Fresh, seasonal botanicals with a beautiful rustic Tennessee aesthetic.",       av:"S", color:"mint" },
+  { id:"na-fl4", name:"Cedarwood Floral Design",      cat:"florist",      city:"Nashville",     rating:4.8, reviews:145, price:"$$$",  desc:"Organic, garden-gathered arrangements for Nashville's most scenic venues.",    av:"C", color:"mint" },
+  { id:"na-fl5", name:"Oleander Nashville",           cat:"florist",      city:"Nashville",     rating:4.7, reviews:112, price:"$$",   desc:"Contemporary minimalist florals for the modern, design-conscious couple.",    av:"O", color:"mint" },
+  // Caterers
+  { id:"na-ca1", name:"Hors d'Oeuvres Unlimited",     cat:"caterer",      city:"Nashville",     rating:4.9, reviews:312, price:"$$$",  desc:"Nashville's premier event caterer delivering Southern hospitality at its finest.", av:"H", color:"lavender" },
+  { id:"na-ca2", name:"Taste Catering Nashville",     cat:"caterer",      city:"Nashville",     rating:4.8, reviews:198, price:"$$$",  desc:"Modern American cuisine with a Southern soul for discerning Nashville couples.", av:"T", color:"lavender" },
+  { id:"na-ca3", name:"Bread & Company Catering",     cat:"caterer",      city:"Nashville",     rating:4.8, reviews:256, price:"$$",   desc:"Fresh, handcrafted menus with artisanal breads and seasonal Southern flavors.", av:"B", color:"lavender" },
+  { id:"na-ca4", name:"Chef's Market Catering",       cat:"caterer",      city:"Nashville",     rating:4.8, reviews:145, price:"$$$",  desc:"Farm-fresh menus celebrating Tennessee's bounty for refined receptions.",      av:"C", color:"lavender" },
+  { id:"na-ca5", name:"Dream Events & Catering",      cat:"caterer",      city:"Nashville",     rating:4.7, reviews:167, price:"$$",   desc:"Full-service catering with a specialty in heartwarming Southern comfort dishes.", av:"D", color:"lavender" },
+  // DJ / Music
+  { id:"na-dj1", name:"Nashville Wedding DJ",         cat:"dj-music",     city:"Nashville",     rating:4.9, reviews:198, price:"$$",   desc:"Nashville's premier wedding DJ blending country, pop and rock seamlessly.",   av:"N", color:"sky" },
+  { id:"na-dj2", name:"Music City DJ",                cat:"dj-music",     city:"Nashville",     rating:4.8, reviews:178, price:"$$",   desc:"High-energy DJ sets celebrating Music City's rich and eclectic sound.",        av:"M", color:"sky" },
+  { id:"na-dj3", name:"DJ Ace Productions Nashville", cat:"dj-music",     city:"Nashville",     rating:4.8, reviews:156, price:"$$$",  desc:"Full entertainment production with custom lighting and live band options.",    av:"D", color:"sky" },
+  { id:"na-dj4", name:"Southern Sound Entertainment", cat:"dj-music",     city:"Nashville",     rating:4.7, reviews:134, price:"$$",   desc:"Authentic Nashville sound experience for intimate and grand weddings alike.",  av:"S", color:"sky" },
+  { id:"na-dj5", name:"Harmony Wedding DJs",          cat:"dj-music",     city:"Nashville",     rating:4.7, reviews:112, price:"$$",   desc:"Versatile, crowd-reading DJs who keep the dance floor alive all night long.",  av:"H", color:"sky" },
+  // Planners
+  { id:"na-pl1", name:"Cedarwood Weddings",           cat:"planner",      city:"Nashville",     rating:4.9, reviews:287, price:"$$$",  desc:"Beloved Nashville planning team crafting romantic, timeless wedding days.",    av:"C", color:"blush" },
+  { id:"na-pl2", name:"Honey & Bee Events",           cat:"planner",      city:"Nashville",     rating:4.9, reviews:198, price:"$$",   desc:"Warm, detail-obsessed planning for Nashville's most personal celebrations.",   av:"H", color:"blush" },
+  { id:"na-pl3", name:"A Classic Party Rental",       cat:"planner",      city:"Nashville",     rating:4.8, reviews:167, price:"$$$",  desc:"Full-service event design and planning with stunning Tennessee backdrops.",    av:"A", color:"blush" },
+  { id:"na-pl4", name:"Nuptials Nashville",           cat:"planner",      city:"Nashville",     rating:4.8, reviews:145, price:"$$",   desc:"Boutique Nashville wedding planning with a signature rustic-elegant flair.",   av:"N", color:"blush" },
+  { id:"na-pl5", name:"L'Abri Nashville Events",      cat:"planner",      city:"Nashville",     rating:4.7, reviews:123, price:"$$",   desc:"Personalized, story-driven planning celebrating every couple's unique love.",  av:"L", color:"blush" },
+  // Venues
+  { id:"na-ve1", name:"Cheekwood Estate & Gardens",   cat:"venue",        city:"Nashville",     rating:4.9, reviews:456, price:"$$$$", desc:"Spectacular 55-acre botanical gardens and 1930s Georgian mansion estate.",    av:"C", color:"gold" },
+  { id:"na-ve2", name:"The Inn at Fontanel",          cat:"venue",        city:"Nashville",     rating:4.8, reviews:312, price:"$$$",  desc:"Award-winning rustic-luxury venue nestled in Nashville's forested hills.",    av:"I", color:"gold" },
+  { id:"na-ve3", name:"Cedarwood Nashville",          cat:"venue",        city:"Nashville",     rating:4.9, reviews:387, price:"$$$",  desc:"Nashville's most beloved garden venue with a romantic, wooded estate feel.",  av:"C", color:"gold" },
+  { id:"na-ve4", name:"The Bell Tower Nashville",     cat:"venue",        city:"Nashville",     rating:4.8, reviews:267, price:"$$$$", desc:"Historic 1874 Gothic church tower transformed into a dramatic event space.",   av:"B", color:"gold" },
+  { id:"na-ve5", name:"The Cordelle Nashville",       cat:"venue",        city:"Nashville",     rating:4.8, reviews:234, price:"$$$$", desc:"Industrial-chic venue with exposed brick and stunning Nashville skyline views.", av:"C", color:"gold" },
+  // Bakery
+  { id:"na-bk1", name:"Dulce Desserts Nashville",     cat:"bakery",       city:"Nashville",     rating:4.9, reviews:234, price:"$$$",  desc:"Award-winning Nashville cake studio with sculptural artistry and rich flavor.",  av:"D", color:"rose" },
+  { id:"na-bk2", name:"The Dessert Stand",            cat:"bakery",       city:"Nashville",     rating:4.8, reviews:198, price:"$$",   desc:"Beautiful, seasonal wedding cakes crafted with Tennessee-grown ingredients.",  av:"D", color:"rose" },
+  { id:"na-bk3", name:"Edible Art Pastry Shop",       cat:"bakery",       city:"Nashville",     rating:4.8, reviews:156, price:"$$$",  desc:"Sculpted sugar masterpieces as beautiful to look at as they are to taste.",   av:"E", color:"rose" },
+  { id:"na-bk4", name:"Flavor Cupcakery Nashville",   cat:"bakery",       city:"Nashville",     rating:4.7, reviews:178, price:"$$",   desc:"Charming Nashville bakery with bold flavors and whimsical wedding tower designs.", av:"F", color:"rose" },
+  { id:"na-bk5", name:"Christie Cookie Company",      cat:"bakery",       city:"Nashville",     rating:4.7, reviews:312, price:"$",    desc:"Nashville's iconic warm cookie brand now crafting stunning custom wedding cakes.", av:"C", color:"rose" },
+
+  // ── SAN FRANCISCO ─────────────────────────────────────────────────────────
+  // Photographers
+  { id:"sf-ph1", name:"Golden Hour Studio",           cat:"photographer", city:"San Francisco", rating:4.9, reviews:128, price:"$$$",  desc:"Award-winning Bay Area photography capturing every golden magical moment.",   av:"G", color:"peach" },
+  { id:"sf-ph2", name:"This Modern Romance",          cat:"photographer", city:"San Francisco", rating:4.9, reviews:198, price:"$$$$", desc:"Cinematic fine-art wedding photography across Northern California.",          av:"T", color:"peach" },
+  { id:"sf-ph3", name:"Jasmine Lee Photo SF",         cat:"photographer", city:"San Francisco", rating:4.8, reviews:167, price:"$$$",  desc:"Vibrant, editorial wedding photography with a Bay Area soul.",                av:"J", color:"peach" },
+  { id:"sf-ph4", name:"Sherry Chen Photography",      cat:"photographer", city:"San Francisco", rating:4.8, reviews:143, price:"$$$",  desc:"Romantic, luminous portraits for San Francisco's diverse and stylish couples.", av:"S", color:"peach" },
+  { id:"sf-ph5", name:"Lens & Light",                 cat:"photographer", city:"San Francisco", rating:4.6, reviews:61,  price:"$$",   desc:"Natural light portraits with a candid documentary Bay Area style.",           av:"L", color:"peach" },
+  // Florists
+  { id:"sf-fl1", name:"Studio Mondine",               cat:"florist",      city:"San Francisco", rating:4.9, reviews:167, price:"$$$$", desc:"Bay Area's most celebrated florist — organic, sculptural and achingly beautiful.", av:"S", color:"mint" },
+  { id:"sf-fl2", name:"Tulipina",                     cat:"florist",      city:"San Francisco", rating:4.9, reviews:198, price:"$$$$", desc:"Opulent, overflowing arrangements that redefine luxury wedding floristry.",    av:"T", color:"mint" },
+  { id:"sf-fl3", name:"Gorgeous and Green",           cat:"florist",      city:"San Francisco", rating:4.8, reviews:134, price:"$$$",  desc:"Sustainable, locally sourced florals celebrating Northern California's botanicals.", av:"G", color:"mint" },
+  { id:"sf-fl4", name:"Petal & Vine",                 cat:"florist",      city:"San Francisco", rating:4.8, reviews:94,  price:"$$",   desc:"Lush garden-style florals and custom floral installations across the Bay Area.", av:"P", color:"mint" },
+  { id:"sf-fl5", name:"Branch Design Studio SF",      cat:"florist",      city:"San Francisco", rating:4.7, reviews:112, price:"$$$",  desc:"Contemporary, architectural floral designs for the design-forward Bay Area couple.", av:"B", color:"mint" },
+  // Caterers
+  { id:"sf-ca1", name:"McCalls Catering",             cat:"caterer",      city:"San Francisco", rating:4.9, reviews:312, price:"$$$$", desc:"Four decades of San Francisco event excellence and culinary innovation.",       av:"M", color:"lavender" },
+  { id:"sf-ca2", name:"Hearth Table",                 cat:"caterer",      city:"San Francisco", rating:4.9, reviews:205, price:"$$$",  desc:"Farm-to-table cuisine for intimate and grand Bay Area weddings.",             av:"H", color:"lavender" },
+  { id:"sf-ca3", name:"Taste Catering SF",            cat:"caterer",      city:"San Francisco", rating:4.8, reviews:189, price:"$$$",  desc:"Modern California cuisine with seasonal menus and impeccable Bay Area service.", av:"T", color:"lavender" },
+  { id:"sf-ca4", name:"Bon Vivant Catering",          cat:"caterer",      city:"San Francisco", rating:4.8, reviews:156, price:"$$",   desc:"French-Californian fusion cuisine for the Bay Area's most celebrated events.", av:"B", color:"lavender" },
+  { id:"sf-ca5", name:"Catered Too SF",               cat:"caterer",      city:"San Francisco", rating:4.7, reviews:134, price:"$$",   desc:"Creative, globally-inspired menus for weddings across the Bay Area.",         av:"C", color:"lavender" },
+  // DJ / Music
+  { id:"sf-dj1", name:"Skyline DJ Entertainment",     cat:"dj-music",     city:"San Francisco", rating:4.8, reviews:134, price:"$$$",  desc:"Premium Bay Area DJ services with full lighting and sound production.",        av:"S", color:"sky" },
+  { id:"sf-dj2", name:"Blue Note Events",             cat:"dj-music",     city:"San Francisco", rating:4.7, reviews:73,  price:"$$",   desc:"Keeping the Bay Area dance floor packed with energy since 2010.",             av:"B", color:"sky" },
+  { id:"sf-dj3", name:"Melody Keys SF",               cat:"dj-music",     city:"San Francisco", rating:4.8, reviews:55,  price:"$$",   desc:"Live music and DJ hybrid services for Bay Area ceremony and reception.",       av:"M", color:"sky" },
+  { id:"sf-dj4", name:"DJKAM Bay Area",               cat:"dj-music",     city:"San Francisco", rating:4.8, reviews:98,  price:"$$$",  desc:"Award-winning Bay Area DJ known for electric multi-cultural dance floors.",    av:"D", color:"sky" },
+  { id:"sf-dj5", name:"Bay Area Wedding DJs",         cat:"dj-music",     city:"San Francisco", rating:4.7, reviews:112, price:"$$",   desc:"Versatile open-format DJs serving the entire San Francisco Bay Area.",         av:"B", color:"sky" },
+  // Planners
+  { id:"sf-pl1", name:"Laurie Arons Special Events",  cat:"planner",      city:"San Francisco", rating:4.9, reviews:198, price:"$$$$", desc:"Bay Area's most distinguished luxury planner for three celebrated decades.",   av:"L", color:"blush" },
+  { id:"sf-pl2", name:"Passport to Joy",              cat:"planner",      city:"San Francisco", rating:4.9, reviews:167, price:"$$$$", desc:"Award-winning SF wedding planning with a deeply personal and artful approach.", av:"P", color:"blush" },
+  { id:"sf-pl3", name:"Grace & White",                cat:"planner",      city:"San Francisco", rating:4.9, reviews:83,  price:"$$$",  desc:"Full-service Bay Area planning with a sophisticated eye for design and detail.", av:"G", color:"blush" },
+  { id:"sf-pl4", name:"Lemon Tree Events SF",         cat:"planner",      city:"San Francisco", rating:4.8, reviews:134, price:"$$$",  desc:"Fresh, modern wedding planning with a warm, meticulous Bay Area sensibility.", av:"L", color:"blush" },
+  { id:"sf-pl5", name:"Emily Clarke Events",          cat:"planner",      city:"San Francisco", rating:4.7, reviews:112, price:"$$",   desc:"Boutique San Francisco planning for the couple who wants every detail perfect.", av:"E", color:"blush" },
+  // Venues
+  { id:"sf-ve1", name:"The Fairmont San Francisco",   cat:"venue",        city:"San Francisco", rating:4.9, reviews:567, price:"$$$$", desc:"Nob Hill's crown jewel — legendary ballrooms with panoramic city views.",      av:"F", color:"gold" },
+  { id:"sf-ve2", name:"Cavallo Point Lodge",          cat:"venue",        city:"San Francisco", rating:4.9, reviews:345, price:"$$$$", desc:"Stunning Golden Gate views from a waterfront lodge in a national park.",       av:"C", color:"gold" },
+  { id:"sf-ve3", name:"San Francisco City Hall",      cat:"venue",        city:"San Francisco", rating:4.9, reviews:789, price:"$$",   desc:"Iconic Beaux-Arts rotunda with breathtaking marble staircases and city soul.",  av:"C", color:"gold" },
+  { id:"sf-ve4", name:"The Julia Morgan Ballroom",    cat:"venue",        city:"San Francisco", rating:4.8, reviews:312, price:"$$$",  desc:"Historic 1903 landmark ballroom with gilded ceilings and old-world grandeur.",  av:"J", color:"gold" },
+  { id:"sf-ve5", name:"Rosewood Rentals",             cat:"venue",        city:"San Francisco", rating:4.7, reviews:44,  price:"$$$",  desc:"Romantic coastal estate with garden ceremony and elegant Bay Area ballroom.",  av:"R", color:"gold" },
+  // Bakery
+  { id:"sf-bk1", name:"Satura Cakes",                 cat:"bakery",       city:"San Francisco", rating:4.9, reviews:234, price:"$$$",  desc:"Japanese-inspired precision with light, fresh flavors in every ethereal layer.", av:"S", color:"rose" },
+  { id:"sf-bk2", name:"B Patisserie",                 cat:"bakery",       city:"San Francisco", rating:4.9, reviews:289, price:"$$$",  desc:"French-Californian pastry artistry yielding hauntingly beautiful wedding cakes.", av:"B", color:"rose" },
+  { id:"sf-bk3", name:"Sugar Blossom Bake Shop",      cat:"bakery",       city:"San Francisco", rating:4.8, reviews:198, price:"$$",   desc:"Charming Bay Area bakery crafting fresh, elegant wedding cakes with love.",     av:"S", color:"rose" },
+  { id:"sf-bk4", name:"Criolla Kitchen",              cat:"bakery",       city:"San Francisco", rating:4.8, reviews:167, price:"$$",   desc:"New Orleans-inspired flavors meet Bay Area craft in gorgeous wedding tiers.",  av:"C", color:"rose" },
+  { id:"sf-bk5", name:"Noe Valley Bakery",            cat:"bakery",       city:"San Francisco", rating:4.7, reviews:156, price:"$$",   desc:"Beloved SF neighborhood bakery celebrated for fresh, seasonal wedding cakes.",  av:"N", color:"rose" },
 ];
 
 let discoverFilter = "all";
+let discoverCity = localStorage.getItem("wedboard:discoverCity") || "";
 
 function renderDiscovery() {
+  // Sync location select
+  const locSel = document.getElementById("c-location-select");
+  if (locSel && locSel.value !== discoverCity) locSel.value = discoverCity;
+
+  // Filter pills
   document.querySelectorAll("#c-discover-filters .filter-pill").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.cat === discoverFilter);
     btn.onclick = () => { discoverFilter = btn.dataset.cat; renderDiscovery(); };
   });
-  const vendors = discoverFilter === "all" ? DISCOVERY_VENDORS : DISCOVERY_VENDORS.filter(v => v.cat === discoverFilter);
+
+  // Apply both filters
+  let vendors = DISCOVERY_VENDORS;
+  if (discoverCity) vendors = vendors.filter(v => v.city === discoverCity);
+  if (discoverFilter !== "all") vendors = vendors.filter(v => v.cat === discoverFilter);
+
   const grid = document.getElementById("c-vendor-discover-grid");
   grid.innerHTML = "";
+
+  if (!vendors.length) {
+    grid.innerHTML = `<p class="muted sm" style="padding:24px 0;grid-column:1/-1">No vendors found for this location and category.</p>`;
+    return;
+  }
+
   vendors.forEach(v => {
     const card = document.createElement("div");
     card.className = "vendor-discover-card";
@@ -538,6 +998,19 @@ function renderDiscovery() {
     grid.appendChild(card);
   });
 }
+
+// Location selector
+document.addEventListener("DOMContentLoaded", () => {
+  const locSel = document.getElementById("c-location-select");
+  if (locSel) {
+    locSel.value = discoverCity;
+    locSel.addEventListener("change", () => {
+      discoverCity = locSel.value;
+      localStorage.setItem("wedboard:discoverCity", discoverCity);
+      renderDiscovery();
+    });
+  }
+});
 
 function addDiscoveredVendor(v) {
   if (document.querySelector(`.c-vendor-btn[data-vendor="${v.name}"]`)) { renderDiscovery(); return; }
@@ -588,28 +1061,93 @@ function renderUnassigned() {
 function renderTables() {
   const grid = document.getElementById("c-tables-grid"); grid.innerHTML = "";
   for (let t = 0; t < seatingState.tables; t++) {
-    const tableEl = document.createElement("div"); tableEl.className = "seating-table-card";
+    const tableEl = document.createElement("div");
+    tableEl.className = "seating-table-card";
+    tableEl.style.cursor = "pointer";
     const count = seatingState.guests.filter(g => g.tableId === t).length;
-    tableEl.innerHTML = `<div class="seating-table-header"><span>Table ${t + 1}</span><span class="muted sm">${count}/${seatingState.seatsPerTable}</span></div><div class="seating-seats" id="c-tbl-${t}"></div>`;
+    tableEl.innerHTML = `<div class="seating-table-header"><span>Table ${t + 1}</span><div class="seating-table-header-right"><span class="muted sm">${count}/${seatingState.seatsPerTable}</span><span class="seating-open-hint">Edit ›</span></div></div><div class="seating-seats" id="c-tbl-${t}"></div>`;
     const seatsEl = tableEl.querySelector(".seating-seats");
     for (let s = 0; s < seatingState.seatsPerTable; s++) {
       const seat = document.createElement("div");
       const guest = seatingState.guests.find(g => g.tableId === t && g.seat === s);
       seat.className = "seating-seat " + (guest ? "filled" : "empty");
       seat.textContent = guest ? guest.name.split(" ")[0] : "+";
-      seat.title = guest ? guest.name : "Click to seat a guest";
-      seat.onclick = () => {
-        if (guest) { guest.tableId = null; guest.seat = null; renderSeating(); }
-        else if (seatingState.selected) {
-          const g = seatingState.guests.find(x => x.id === seatingState.selected);
-          if (g) { g.tableId = t; g.seat = s; seatingState.selected = null; renderSeating(); }
-        }
-      };
+      seat.title = guest ? guest.name : "Click table to add guests";
       seatsEl.appendChild(seat);
     }
+    tableEl.onclick = () => openTableModal(t);
     grid.appendChild(tableEl);
   }
 }
+
+// ── Table Modal ───────────────────────────────────────────────────────────────
+let modalTableIndex = null;
+
+function openTableModal(tableIdx) {
+  modalTableIndex = tableIdx;
+  document.getElementById("c-modal-table-title").textContent = `Table ${tableIdx + 1}`;
+  renderModalSeats();
+  document.getElementById("c-seating-modal-overlay").classList.remove("hidden");
+  // Focus the first empty input
+  setTimeout(() => {
+    const first = document.querySelector(".modal-seat-input:placeholder-shown");
+    if (first) first.focus();
+  }, 60);
+}
+
+function renderModalSeats() {
+  const body = document.getElementById("c-seating-modal-seats");
+  const t = modalTableIndex;
+  body.innerHTML = "";
+  for (let s = 0; s < seatingState.seatsPerTable; s++) {
+    const guest = seatingState.guests.find(g => g.tableId === t && g.seat === s);
+    const row = document.createElement("div");
+    row.className = "modal-seat-row";
+    row.innerHTML = `<span class="modal-seat-num">${s + 1}</span><input class="modal-seat-input" type="text" placeholder="Guest name…" value="${guest ? esc(guest.name) : ""}"><button class="modal-seat-clear ${guest ? "" : "hidden"}" title="Remove">&times;</button>`;
+    const input = row.querySelector(".modal-seat-input");
+    const clearBtn = row.querySelector(".modal-seat-clear");
+    input.addEventListener("input", () => {
+      const val = input.value.trim();
+      const existing = seatingState.guests.find(g => g.tableId === t && g.seat === s);
+      if (existing) {
+        if (val) existing.name = val;
+        else { seatingState.guests = seatingState.guests.filter(g => !(g.tableId === t && g.seat === s)); }
+      } else if (val) {
+        seatingState.guests.push({ id: crypto.randomUUID(), name: val, tableId: t, seat: s });
+      }
+      clearBtn.classList.toggle("hidden", !val);
+      updateModalStats();
+    });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        const next = body.querySelectorAll(".modal-seat-input")[s + 1];
+        if (next) next.focus(); else document.getElementById("c-seating-modal-close").click();
+      }
+    });
+    clearBtn.addEventListener("click", () => {
+      seatingState.guests = seatingState.guests.filter(g => !(g.tableId === t && g.seat === s));
+      input.value = ""; clearBtn.classList.add("hidden"); input.focus(); updateModalStats();
+    });
+    body.appendChild(row);
+  }
+  updateModalStats();
+}
+
+function updateModalStats() {
+  const t = modalTableIndex;
+  const count = seatingState.guests.filter(g => g.tableId === t).length;
+  document.getElementById("c-modal-table-stats").textContent = `${count} / ${seatingState.seatsPerTable} seated`;
+}
+
+document.getElementById("c-seating-modal-close").onclick = () => {
+  document.getElementById("c-seating-modal-overlay").classList.add("hidden");
+  renderSeating();
+};
+document.getElementById("c-seating-modal-overlay").addEventListener("click", e => {
+  if (e.target === document.getElementById("c-seating-modal-overlay")) {
+    document.getElementById("c-seating-modal-close").click();
+  }
+});
 
 function updateSeatingStats() {
   const total = seatingState.guests.length;
@@ -627,6 +1165,23 @@ document.getElementById("c-seating-clear").onclick = () => {
   if (confirm("Remove all guests and clear the seating chart?")) { seatingState.guests = []; seatingState.selected = null; renderSeating(); }
 };
 
+// Table / seat count steppers
+function updateSeatingConfig() {
+  document.getElementById("c-tables-count").textContent = seatingState.tables;
+  document.getElementById("c-seats-count").textContent = seatingState.seatsPerTable;
+  // Unassign any guests whose seat no longer exists
+  seatingState.guests.forEach(g => {
+    if (g.tableId !== null && (g.tableId >= seatingState.tables || g.seat >= seatingState.seatsPerTable)) {
+      g.tableId = null; g.seat = null;
+    }
+  });
+  renderSeating();
+}
+document.getElementById("c-tables-dec").onclick = () => { if (seatingState.tables > 1) { seatingState.tables--; updateSeatingConfig(); } };
+document.getElementById("c-tables-inc").onclick = () => { if (seatingState.tables < 20) { seatingState.tables++; updateSeatingConfig(); } };
+document.getElementById("c-seats-dec").onclick  = () => { if (seatingState.seatsPerTable > 2) { seatingState.seatsPerTable--; updateSeatingConfig(); } };
+document.getElementById("c-seats-inc").onclick  = () => { if (seatingState.seatsPerTable < 16) { seatingState.seatsPerTable++; updateSeatingConfig(); } };
+
 // ═══ CARD GENERATOR ═══════════════════════════════════════════════════════════
 function initCard() {
   const p = state.currentUser?.profile || {};
@@ -634,6 +1189,12 @@ function initCard() {
   const dateEl = document.getElementById("c-card-date");
   const venueEl = document.getElementById("c-card-venue");
   if (!coupleEl.value && p.partner1 && p.partner2) coupleEl.value = `${p.partner1} & ${p.partner2}`;
+  // Seed menu rows on first open
+  if (!document.querySelector("#c-menu-rows .menu-row")) {
+    addMenuRow("Starter", "Garden Salad");
+    addMenuRow("Main", "Roasted Chicken");
+    addMenuRow("Dessert", "Wedding Cake");
+  }
   if (!dateEl.value && p.weddingDate) {
     try { const d = new Date(p.weddingDate + "T12:00:00"); dateEl.value = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }); } catch {}
   }
@@ -641,34 +1202,243 @@ function initCard() {
   renderCard();
 }
 
+let cardTheme = "classic";
+let cardZoom  = 1;
+
+function addMenuRow(course, dish) {
+  const container = document.getElementById("c-menu-rows");
+  const row = document.createElement("div");
+  row.className = "menu-row";
+  const ci = document.createElement("input"); ci.type = "text"; ci.className = "menu-course"; ci.placeholder = "Course"; ci.value = course; ci.addEventListener("input", renderCard);
+  const di = document.createElement("input"); di.type = "text"; di.className = "menu-dish";   di.placeholder = "Dish";   di.value = dish;   di.addEventListener("input", renderCard);
+  const rb = document.createElement("button"); rb.type = "button"; rb.className = "menu-row-remove"; rb.title = "Remove"; rb.textContent = "×"; rb.onclick = () => { row.remove(); renderCard(); };
+  row.appendChild(ci); row.appendChild(di); row.appendChild(rb);
+  container.appendChild(row);
+}
+
+function getMenuText() {
+  const lines = [];
+  document.querySelectorAll("#c-menu-rows .menu-row").forEach(row => {
+    const c = row.querySelector(".menu-course").value.trim();
+    const d = row.querySelector(".menu-dish").value.trim();
+    if (c || d) lines.push(c && d ? `${c}: ${d}` : (c || d));
+  });
+  return lines.length ? lines.join("\n") : "Starter: Garden Salad\nMain: Roasted Chicken\nDessert: Wedding Cake";
+}
+
 function renderCard() {
-  const type = document.getElementById("c-card-type").value;
+  const type   = document.getElementById("c-card-type").value;
   const couple = document.getElementById("c-card-couple").value || "Couple Names";
   const date   = document.getElementById("c-card-date").value   || "Wedding Date";
   const venue  = document.getElementById("c-card-venue").value  || "Venue";
   const guest  = document.getElementById("c-card-guest").value  || "Guest Name";
   const msg    = document.getElementById("c-card-msg").value    || "Thank you for celebrating this special day with us. Your presence made our wedding truly memorable.";
-  const menu   = document.getElementById("c-card-menu").value   || "Starter: Garden Salad\nMain: Roasted Chicken or Vegetable Risotto\nDessert: Wedding Cake";
+  const menu   = getMenuText();
 
   document.getElementById("c-card-guest-label").style.display = type === "place" ? "" : "none";
   document.getElementById("c-card-msg-label").style.display   = (type === "thankyou" || type === "invitation") ? "" : "none";
   document.getElementById("c-card-menu-label").style.display  = type === "menu" ? "" : "none";
 
+  const th = ` data-theme="${cardTheme}"`;
   const preview = document.getElementById("c-card-preview-area");
   if (type === "place") {
-    preview.innerHTML = `<div class="wedding-card place-card"><div class="card-flourish">✦</div><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><p class="card-label">Please be seated</p><h2 class="card-guest-name">${esc(guest)}</h2></div>`;
+    preview.innerHTML = `<div class="wedding-card place-card"${th}><div class="card-flourish">✦</div><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><p class="card-label">Please be seated</p><h2 class="card-guest-name">${esc(guest)}</h2></div>`;
   } else if (type === "thankyou") {
-    preview.innerHTML = `<div class="wedding-card thankyou-card"><div class="card-flourish">✸</div><h2 class="card-title">Thank You</h2><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><p class="card-body-text">${esc(msg)}</p><p class="card-date">${esc(date)}</p></div>`;
+    preview.innerHTML = `<div class="wedding-card thankyou-card"${th}><div class="card-flourish">✸</div><h2 class="card-title">Thank You</h2><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><p class="card-body-text">${esc(msg)}</p><p class="card-date">${esc(date)}</p></div>`;
   } else if (type === "menu") {
-    preview.innerHTML = `<div class="wedding-card menu-card"><div class="card-flourish">✦</div><h2 class="card-title">Menu</h2><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><div class="card-menu-items">${menu.split("\n").map(l => `<p>${esc(l)}</p>`).join("")}</div></div>`;
+    preview.innerHTML = `<div class="wedding-card menu-card"${th}><div class="card-flourish">✦</div><h2 class="card-title">Menu</h2><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><div class="card-menu-items">${menu.split("\n").map(l => `<p>${esc(l)}</p>`).join("")}</div></div>`;
   } else {
-    preview.innerHTML = `<div class="wedding-card invitation-card"><div class="card-flourish">✦ ✦ ✦</div><p class="card-eyebrow">Together with their families</p><h1 class="card-couple-big">${esc(couple)}</h1><p class="card-label">request the honour of your presence</p><div class="card-divider"></div><p class="card-date">${esc(date)}</p><p class="card-venue">${esc(venue)}</p>${msg !== "Thank you for celebrating this special day with us. Your presence made our wedding truly memorable." ? `<p class="card-body-text" style="margin-top:12px">${esc(msg)}</p>` : ""}</div>`;
+    preview.innerHTML = `<div class="wedding-card invitation-card"${th}><div class="card-flourish">✦ ✦ ✦</div><p class="card-eyebrow">Together with their families</p><h1 class="card-couple-big">${esc(couple)}</h1><p class="card-label">request the honour of your presence</p><div class="card-divider"></div><p class="card-date">${esc(date)}</p><p class="card-venue">${esc(venue)}</p>${msg !== "Thank you for celebrating this special day with us. Your presence made our wedding truly memorable." ? `<p class="card-body-text" style="margin-top:12px">${esc(msg)}</p>` : ""}</div>`;
   }
+  applyCardZoom();
 }
 
-["c-card-type","c-card-couple","c-card-date","c-card-venue","c-card-guest","c-card-msg","c-card-menu"].forEach(id => {
+function applyCardZoom() {
+  const card = document.querySelector("#c-card-preview-area .wedding-card");
+  if (card) card.style.transform = `scale(${cardZoom})`;
+  document.getElementById("c-zoom-label").textContent = Math.round(cardZoom * 100) + "%";
+}
+
+["c-card-type","c-card-couple","c-card-date","c-card-venue","c-card-guest","c-card-msg"].forEach(id => {
   const el = document.getElementById(id); el.addEventListener("input", renderCard); el.addEventListener("change", renderCard);
 });
+document.getElementById("c-menu-add").onclick = () => { addMenuRow("", ""); };
+
+document.getElementById("c-card-theme").addEventListener("click", e => {
+  const btn = e.target.closest(".theme-swatch"); if (!btn) return;
+  cardTheme = btn.dataset.theme;
+  document.querySelectorAll(".theme-swatch").forEach(s => s.classList.toggle("active", s === btn));
+  renderCard();
+});
+
+document.getElementById("c-zoom-in").onclick  = () => { if (cardZoom < 1.5) { cardZoom = Math.round((cardZoom + 0.1) * 10) / 10; applyCardZoom(); } };
+document.getElementById("c-zoom-out").onclick = () => { if (cardZoom > 0.5) { cardZoom = Math.round((cardZoom - 0.1) * 10) / 10; applyCardZoom(); } };
+
+// ═══ AI ASSISTANT PANEL ═══════════════════════════════════════════════════════
+const aiPanelState = { messages: [], streaming: false, opened: false };
+
+document.getElementById("c-ai-fab").onclick = () => {
+  const panel = document.getElementById("c-ai-panel");
+  const opening = panel.classList.contains("hidden");
+  panel.classList.toggle("hidden");
+  if (opening) {
+    if (!aiPanelState.opened) {
+      aiPanelState.opened = true;
+      addAiPanelMsg("ai", "Hello! I'm your AI Wedding Planner. ✦\n\nAsk me anything — vendor tips, budgeting, timelines, seating, flowers, or anything else for your big day.");
+    }
+    setTimeout(() => document.getElementById("c-ai-panel-input").focus(), 80);
+  }
+};
+
+document.getElementById("c-ai-panel-close").onclick = () =>
+  document.getElementById("c-ai-panel").classList.add("hidden");
+
+document.getElementById("c-ai-panel-send").onclick = sendAiPanel;
+document.getElementById("c-ai-panel-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") sendAiPanel();
+});
+
+function sendAiPanel() {
+  if (aiPanelState.streaming) return;
+  const input = document.getElementById("c-ai-panel-input");
+  const q = input.value.trim(); if (!q) return;
+  input.value = "";
+
+  // Build context from current history before adding the new message
+  const panelHistory = aiPanelState.messages.map(m => ({
+    type: m.role === "ai" ? "ai" : "user",
+    author: m.role === "ai" ? "AI Assistant" : "You",
+    text: m.text
+  }));
+  const messages = buildAIMessages(q, panelHistory);
+
+  addAiPanelMsg("human", q);
+  aiPanelState.streaming = true;
+
+  const feed = document.getElementById("c-ai-panel-feed");
+  let msgEl = null, full = "";
+
+  dispatchAI(messages, q, {
+    showTypingFn: showAiPanelTyping,
+    removeTypingFn: removeAiPanelTyping,
+    onChunk(chunk) {
+      removeAiPanelTyping();
+      if (!msgEl) { msgEl = createAiPanelMsgEl("ai"); feed.appendChild(msgEl); }
+      full += chunk;
+      msgEl.querySelector(".ai-panel-msg-text").innerHTML = renderMd(full);
+      feed.scrollTop = feed.scrollHeight;
+    },
+    onDone() {
+      if (full) aiPanelState.messages.push({ role: "ai", text: full });
+      aiPanelState.streaming = false;
+    },
+    onError(err) {
+      removeAiPanelTyping();
+      aiPanelState.streaming = false;
+      if (err === "no_key") {
+        addAiPanelMsg("ai", aiLocalResponse(q) + "\n\n---\n*Add an OpenAI API key in **Settings → Configure AI** for live AI responses.*");
+      } else {
+        addAiPanelMsg("ai", `**AI error:** ${err}`);
+      }
+    }
+  });
+}
+
+function aiLocalResponse(q) {
+  const lq = q.toLowerCase();
+  if (state.chunks.length) {
+    const hits = searchKB(q);
+    if (hits.length && hits[0].score > 0.12) return buildAnswer(q, hits[0], hits[1]);
+  }
+  if (lq.match(/budget|cost|price|expensive|afford/))
+    return "**Wedding Budget Guide**\n\n- **Venue** ~30% · **Catering** ~25% · **Photography** ~12%\n- **Florals** ~8% · **Music/DJ** ~5% · **Attire** ~8% · **Other** ~12%\n\n**Tips:** Book 12–18 months early for better pricing. A Friday or Sunday wedding saves 20–30% on venue costs. Always keep a 5–10% contingency buffer.";
+  if (lq.match(/timeline|schedule|when|months|checklist|plan/))
+    return "**Planning Timeline**\n\n- **12+ months:** Venue, date, rough guest list\n- **9–12 months:** Photographer, caterer, officiant\n- **6–9 months:** Florals, DJ/band, attire\n- **3–6 months:** Invitations, cake, honeymoon\n- **1–3 months:** Seating chart, final fittings, vendor confirmations\n- **1 week out:** Final headcount, tips, day-of timeline";
+  if (lq.match(/venue|location|hall|estate|garden/))
+    return "**Choosing a Venue**\n\n- Visit 3–5 venues before deciding\n- Ask about: capacity, catering policy, parking, rain backup plan\n- Check what's included — tables, chairs, linens add up\n- Read reviews and visit during an actual event if possible\n- Book 12+ months in advance for peak summer/fall weekends";
+  if (lq.match(/photo|photograph|picture|camera|shoot/))
+    return "**Photography Tips**\n\n- Meet before booking — personality fit matters as much as portfolio\n- Request a *full* gallery from a previous wedding, not just highlights\n- Book 10–14 months in advance for popular dates\n- Budget for 8–10 hours of coverage for a full-day wedding\n- Create a shot list, but give your photographer creative freedom";
+  if (lq.match(/flower|floral|bouquet|centerpiece|bloom/))
+    return "**Floral Planning**\n\n- Book 9–12 months out for peak season\n- In-season flowers cost 30–40% less than out-of-season\n- Bring 5–10 inspiration images to your first florist meeting\n- Items to budget: bridal bouquet, bridesmaids, boutonnieres, centerpieces, ceremony arch\n- Greenery-heavy arrangements are modern and cost-effective";
+  if (lq.match(/seat|table|chart|arrangement|guest list/))
+    return "**Seating Chart Tips**\n\n- Use the **Seating** tab to build your chart — click any table to add guests directly\n- Seat elderly guests near the entrance, away from speakers\n- Mix friends and family at tables to encourage mingling\n- Keep plus-ones together with their partners\n- Finalize 2–3 weeks before the wedding after all RSVPs are in\n- Round tables of 8–10 encourage conversation better than banquet rows";
+  if (lq.match(/food|cater|menu|dinner|meal|catering/))
+    return "**Catering Advice**\n\n- Offer 2–3 entrée options; always include a vegetarian choice\n- Cocktail hour bites keep guests happy during couple photos\n- Per-person cost typically ranges $85–$160+ depending on service style\n- Buffet is usually more affordable than plated service\n- Confirm final headcount 2 weeks before for accurate ordering";
+  if (lq.match(/dj|music|band|song|dance|entertainment/))
+    return "**Music & Entertainment**\n\n- DJ is typically more affordable and versatile than a live band\n- Create a 'must-play' and a 'do-not-play' list\n- Ceremony, cocktail hour, dinner, and dancing need different feels\n- Discuss volume levels — cocktail hour should allow conversation\n- Book 8–10 months ahead for popular dates";
+  if (lq.match(/invit|card|stationery|rsvp|save the date/))
+    return "**Invitations & Cards**\n\n- Use the **Cards** tab to design and print place cards, thank-you cards, and invitations\n- Save-the-dates: 6–12 months in advance\n- Invitations: 6–8 weeks out (12 weeks for destination weddings)\n- Set RSVP deadline 3–4 weeks before the event\n- Digital RSVPs via a wedding website are eco-friendly and easy to track";
+  if (lq.match(/vendor|hire|book|find|discover/))
+    return "**Finding Vendors**\n\n- Use the **Discover** tab to browse photographers, florists, caterers, and more\n- Add vendors you like directly to your chat list\n- Always check reviews on Google, WedBoard, and The Knot\n- Interview at least 2–3 vendors per category before deciding\n- Ask for references from recent weddings and follow up";
+  if (lq.match(/stress|overwhelm|anxiety|worried|nervous/))
+    return "**Managing Wedding Stress**\n\n- Delegate — your partner, family, and coordinator are there to help\n- Prioritize the 3 things that matter most to *you*, let the rest be flexible\n- Build buffer time into your day-of timeline\n- The day goes fast — pause intentionally to take it all in\n- Remember: it's a celebration of love, not a performance. It will be beautiful. ✦";
+  return "I'm here to help with every part of your wedding planning! Ask me about **budgeting, timelines, vendors, seating, flowers, catering, photography, music, invitations**, or anything else on your mind. ✦";
+}
+
+function addAiPanelMsg(role, text) {
+  aiPanelState.messages.push({ role, text });
+  const el = createAiPanelMsgEl(role);
+  el.querySelector(".ai-panel-msg-text").innerHTML = role === "ai" ? renderMd(text) : esc(text).replace(/\n/g, "<br>");
+  const feed = document.getElementById("c-ai-panel-feed");
+  feed.appendChild(el); feed.scrollTop = feed.scrollHeight;
+}
+function createAiPanelMsgEl(role) {
+  const el = document.createElement("div");
+  el.className = `ai-panel-msg ai-panel-msg--${role}`;
+  el.innerHTML = `<div class="ai-panel-msg-text"></div>`;
+  return el;
+}
+function showAiPanelTyping() {
+  removeAiPanelTyping();
+  const el = createAiPanelMsgEl("ai"); el.id = "ai-panel-typing";
+  el.innerHTML = `<div class="typing-indicator"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+  const feed = document.getElementById("c-ai-panel-feed");
+  feed.appendChild(el); feed.scrollTop = feed.scrollHeight;
+}
+function removeAiPanelTyping() {
+  const el = document.getElementById("ai-panel-typing"); if (el) el.remove();
+}
+
+// ═══ AI KEY MODAL ══════════════════════════════════════════════════════════════
+function openAiKeyModal() {
+  const modal = document.getElementById("ai-key-modal");
+  const input = document.getElementById("ai-key-input");
+  const status = document.getElementById("ai-key-status");
+  const existing = getApiKey();
+  input.value = existing ? existing : "";
+  status.textContent = existing ? "Key saved in this browser." : "";
+  status.className = "modal-hint" + (existing ? " ok" : "");
+  modal.classList.remove("hidden");
+  setTimeout(() => input.focus(), 60);
+}
+
+document.getElementById("ai-key-modal-close").onclick = () =>
+  document.getElementById("ai-key-modal").classList.add("hidden");
+
+document.getElementById("ai-key-modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("ai-key-modal"))
+    document.getElementById("ai-key-modal").classList.add("hidden");
+});
+
+document.getElementById("ai-key-save").onclick = () => {
+  const input = document.getElementById("ai-key-input");
+  const status = document.getElementById("ai-key-status");
+  const val = input.value.trim();
+  if (!val) { status.textContent = "Enter a key first."; status.className = "modal-hint warn"; return; }
+  if (!val.startsWith("sk-")) { status.textContent = "Key should start with sk-…"; status.className = "modal-hint warn"; return; }
+  saveApiKey(val);
+  status.textContent = "Key saved successfully.";
+  status.className = "modal-hint ok";
+  setTimeout(() => document.getElementById("ai-key-modal").classList.add("hidden"), 900);
+};
+
+document.getElementById("ai-key-clear").onclick = () => {
+  const status = document.getElementById("ai-key-status");
+  saveApiKey("");
+  document.getElementById("ai-key-input").value = "";
+  status.textContent = "Key removed.";
+  status.className = "modal-hint warn";
+};
 
 document.getElementById("c-card-download").onclick = () => {
   const cardEl = document.getElementById("c-card-preview-area").querySelector(".wedding-card");

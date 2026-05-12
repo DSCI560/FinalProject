@@ -145,6 +145,7 @@
             <button class="dropdown-item" id="c-manage-vendors">Manage Vendors</button>
             <button class="dropdown-item" id="c-write-review">Write a Review</button>
             <button class="dropdown-item" id="c-kb-btn">Knowledge Base</button>
+            <button class="dropdown-item" id="c-configure-ai-btn">&#128273; Configure AI</button>
             <div class="dropdown-sep"></div>
             <button class="dropdown-item danger" id="c-logout">Sign Out</button>
           </div>
@@ -329,16 +330,40 @@
                   <option value="invitation">Invitation</option>
                 </select>
               </label>
-              <label class="f"><span>Couple Names</span><input id="c-card-couple" type="text" placeholder="e.g. Mia &amp; Ethan"></label>
+              <div class="f">
+                <span>Theme</span>
+                <div class="card-theme-swatches" id="c-card-theme">
+                  <button type="button" class="theme-swatch active" data-theme="classic" title="Classic Ivory"></button>
+                  <button type="button" class="theme-swatch" data-theme="blush" title="Blush Pink"></button>
+                  <button type="button" class="theme-swatch" data-theme="sage" title="Sage Garden"></button>
+                  <button type="button" class="theme-swatch" data-theme="midnight" title="Midnight"></button>
+                </div>
+              </div>
+              <label class="f">
+                <span>Couple Names</span>
+                <input id="c-card-couple" type="text" placeholder="e.g. Mia &amp; Ethan">
+                <small class="f-hint">Appears in small caps on the card</small>
+              </label>
               <label class="f"><span>Wedding Date</span><input id="c-card-date" type="text" placeholder="e.g. June 21, 2025"></label>
               <label class="f"><span>Venue</span><input id="c-card-venue" type="text" placeholder="e.g. Rosewood Garden Estate"></label>
               <label class="f" id="c-card-guest-label"><span>Guest Name</span><input id="c-card-guest" type="text" placeholder="Guest's name"></label>
               <label class="f" id="c-card-msg-label"><span>Message</span><textarea id="c-card-msg" rows="3" placeholder="Thank you for celebrating with us..."></textarea></label>
-              <label class="f" id="c-card-menu-label"><span>Menu Items</span><textarea id="c-card-menu" rows="4" placeholder="Starter: Garden Salad&#10;Main: Roasted Chicken&#10;Dessert: Wedding Cake"></textarea></label>
+              <div class="f" id="c-card-menu-label">
+                <span>Menu Items</span>
+                <div id="c-menu-rows"></div>
+                <button type="button" class="btn-add-course" id="c-menu-add">+ Add Course</button>
+              </div>
               <button class="btn btn-primary w100" id="c-card-download" style="margin-top:4px">&#128424; Print / Save as PDF</button>
             </div>
             <div class="cards-preview-panel">
-              <p class="sidebar-section-title">Preview</p>
+              <div class="preview-panel-header">
+                <p class="sidebar-section-title" style="padding:0">Preview</p>
+                <div class="preview-zoom-controls">
+                  <button type="button" class="zoom-btn" id="c-zoom-out" title="Zoom out">&#8722;</button>
+                  <span class="zoom-label" id="c-zoom-label">100%</span>
+                  <button type="button" class="zoom-btn" id="c-zoom-in" title="Zoom in">+</button>
+                </div>
+              </div>
               <div class="card-preview-area" id="c-card-preview-area"></div>
             </div>
           </div>
@@ -493,7 +518,7 @@
   </div>
 
   <!-- ═══ AI ASSISTANT (floating) ═══ -->
-  <button class="ai-fab hidden" id="c-ai-fab" title="Ask AI Assistant">
+  <button class="ai-fab hidden" id="c-ai-fab" title="Ask AI Assistant" data-tooltip="AI Wedding Planner">
     <span class="ai-fab-icon">&#10022;</span>
   </button>
 
@@ -525,6 +550,26 @@
   <template id="msg-tpl">
     <article class="msg"><div class="msg-av"></div><div class="msg-body"><div class="msg-meta"><strong class="msg-author"></strong><span class="msg-time"></span></div><div class="msg-text"></div></div></article>
   </template>
+
+  <!-- ═══ AI KEY MODAL ═══ -->
+  <div id="ai-key-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ai-key-modal-title">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="ai-key-modal-title">Configure AI</h3>
+        <button class="modal-close" id="ai-key-modal-close" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Add your OpenAI API key to enable live AI responses when the backend server is offline. Your key is stored only in this browser.</p>
+        <label class="modal-label" for="ai-key-input">OpenAI API Key</label>
+        <input type="password" id="ai-key-input" class="modal-input" placeholder="sk-..." autocomplete="off" spellcheck="false" />
+        <p class="modal-hint" id="ai-key-status"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn--secondary" id="ai-key-clear">Clear Key</button>
+        <button class="modal-btn modal-btn--primary" id="ai-key-save">Save Key</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
