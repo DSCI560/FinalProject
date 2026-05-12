@@ -488,3 +488,193 @@ function readDataUrl(f) { return new Promise((res, rej) => { const r = new FileR
 async function checkBackend() { try { const r = await fetch(`${BACKEND_URL}/api/status`, { signal: AbortSignal.timeout(2500) }); if (r.ok) backendOnline = true; } catch { backendOnline = false; } }
 async function apiPost(path, body) { const r = await fetch(`${BACKEND_URL}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function apiGet(path) { const r = await fetch(`${BACKEND_URL}${path}`); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
+
+// ═══ TAB NAVIGATION ═══════════════════════════════════════════════════════════
+document.querySelectorAll(".c-tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".c-tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".c-tab-panel").forEach(p => p.classList.add("hidden"));
+    document.getElementById("c-tab-" + btn.dataset.tab).classList.remove("hidden");
+    if (btn.dataset.tab === "discover") renderDiscovery();
+    if (btn.dataset.tab === "seating") renderSeating();
+    if (btn.dataset.tab === "cards") initCard();
+  });
+});
+
+// ═══ DISCOVERY ════════════════════════════════════════════════════════════════
+const DISCOVERY_VENDORS = [
+  { id: "ghs", name: "Golden Hour Studio",  cat: "photographer", city: "San Francisco", rating: 4.9, reviews: 128, price: "$$$",  desc: "Award-winning photography capturing every magical moment.",         av: "G", color: "peach" },
+  { id: "pv",  name: "Petal & Vine",         cat: "florist",       city: "Oakland",       rating: 4.8, reviews: 94,  price: "$$",   desc: "Lush garden-style florals and custom floral installations.",        av: "P", color: "mint" },
+  { id: "bne", name: "Blue Note Events",     cat: "dj-music",      city: "San Jose",      rating: 4.7, reviews: 73,  price: "$$",   desc: "Keeping the dance floor packed since 2010.",                        av: "B", color: "sky" },
+  { id: "ht",  name: "Hearth Table",         cat: "caterer",       city: "San Francisco", rating: 4.9, reviews: 205, price: "$$$",  desc: "Farm-to-table cuisine for intimate and large weddings.",             av: "H", color: "lavender" },
+  { id: "ll",  name: "Lens & Light",         cat: "photographer",  city: "Berkeley",      rating: 4.6, reviews: 61,  price: "$$",   desc: "Natural light portraits with a candid documentary style.",           av: "L", color: "peach" },
+  { id: "bg",  name: "Bloom Garden",         cat: "florist",       city: "Palo Alto",     rating: 4.8, reviews: 47,  price: "$$$",  desc: "Luxury botanical arrangements for elegant weddings.",                av: "B", color: "mint" },
+  { id: "sw",  name: "Sweets by Sofia",      cat: "bakery",        city: "San Mateo",     rating: 5.0, reviews: 38,  price: "$$",   desc: "Handcrafted tiered cakes and custom dessert tables.",                av: "S", color: "blush" },
+  { id: "ep",  name: "Elegant Plate",        cat: "caterer",       city: "Fremont",       rating: 4.7, reviews: 112, price: "$$",   desc: "Modern fusion cuisine with impeccable presentation.",                av: "E", color: "lavender" },
+  { id: "wr",  name: "Willow Ridge Estate",  cat: "venue",         city: "Napa Valley",   rating: 4.9, reviews: 189, price: "$$$$", desc: "Stunning vineyard estate with panoramic valley views.",              av: "W", color: "sky" },
+  { id: "mk",  name: "Melody Keys",          cat: "dj-music",      city: "San Francisco", rating: 4.8, reviews: 55,  price: "$$",   desc: "Live music and DJ services for ceremony and reception.",             av: "M", color: "sky" },
+  { id: "gw",  name: "Grace & White",        cat: "planner",       city: "San Jose",      rating: 4.9, reviews: 83,  price: "$$$",  desc: "Full-service planning with an eye for design and detail.",           av: "G", color: "lavender" },
+  { id: "rr",  name: "Rosewood Rentals",     cat: "venue",         city: "Santa Cruz",    rating: 4.7, reviews: 44,  price: "$$$",  desc: "Romantic coastal estate with garden ceremony and ballroom.",         av: "R", color: "blush" },
+];
+
+let discoverFilter = "all";
+
+function renderDiscovery() {
+  document.querySelectorAll("#c-discover-filters .filter-pill").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.cat === discoverFilter);
+    btn.onclick = () => { discoverFilter = btn.dataset.cat; renderDiscovery(); };
+  });
+  const vendors = discoverFilter === "all" ? DISCOVERY_VENDORS : DISCOVERY_VENDORS.filter(v => v.cat === discoverFilter);
+  const grid = document.getElementById("c-vendor-discover-grid");
+  grid.innerHTML = "";
+  vendors.forEach(v => {
+    const card = document.createElement("div");
+    card.className = "vendor-discover-card";
+    const stars = "★".repeat(Math.round(v.rating)) + "☆".repeat(5 - Math.round(v.rating));
+    const inList = !!document.querySelector(`.c-vendor-btn[data-vendor="${v.name}"]`);
+    card.innerHTML = `<div class="vdc-header"><div class="m-avatar ${v.color}">${v.av}</div><div class="vdc-info"><strong>${esc(v.name)}</strong><span class="muted sm">${fmtCat(v.cat)} &middot; ${esc(v.city)}</span></div><span class="vdc-price">${v.price}</span></div><p class="vdc-desc">${esc(v.desc)}</p><div class="vdc-footer"><span class="vdc-rating"><span class="star-display">${stars}</span> ${v.rating} <span class="muted sm">(${v.reviews})</span></span>${inList ? '<span class="pill" style="font-size:.72rem">Added</span>' : `<button class="btn btn-primary btn-tiny" data-id="${v.id}">+ Add</button>`}</div>`;
+    if (!inList) card.querySelector("button").onclick = () => addDiscoveredVendor(v);
+    grid.appendChild(card);
+  });
+}
+
+function addDiscoveredVendor(v) {
+  if (document.querySelector(`.c-vendor-btn[data-vendor="${v.name}"]`)) { renderDiscovery(); return; }
+  const list = document.getElementById("c-vendor-list");
+  const btn = document.createElement("button");
+  btn.className = "m-chat-item c-vendor-btn";
+  btn.dataset.vendor = v.name;
+  btn.dataset.cat = fmtCat(v.cat);
+  btn.innerHTML = `<div class="m-avatar ${v.color}">${v.av}</div><div class="m-chat-info"><strong>${esc(v.name)}</strong><span>${fmtCat(v.cat)}</span></div>`;
+  btn.addEventListener("click", () => {
+    if (state.currentUser && state.activeVendorChat) saveHistory(state.currentUser.id, `${state.cohort}::${state.activeVendorChat}`, state.messages);
+    document.querySelectorAll(".c-vendor-btn").forEach(i => i.classList.remove("active"));
+    btn.classList.add("active");
+    state.activeVendorChat = btn.dataset.vendor;
+    document.getElementById("c-chat-title").textContent = btn.dataset.vendor;
+    document.getElementById("c-chat-subtitle").textContent = btn.dataset.cat;
+    document.getElementById("c-topbar-avatar").textContent = btn.dataset.vendor.charAt(0);
+    loadCoupleVendorChat();
+    document.querySelector(".c-tab-btn[data-tab='chat']").click();
+  });
+  list.appendChild(btn);
+  addMessage("system", "System", `${v.name} added to your vendors!`);
+  document.querySelector(".c-tab-btn[data-tab='chat']").click();
+}
+
+// ═══ SEATING CHART ════════════════════════════════════════════════════════════
+const seatingState = { guests: [], tables: 4, seatsPerTable: 8, selected: null };
+
+function renderSeating() { renderUnassigned(); renderTables(); updateSeatingStats(); }
+
+function renderUnassigned() {
+  const container = document.getElementById("c-guest-unassigned");
+  const unassigned = seatingState.guests.filter(g => g.tableId === null);
+  container.innerHTML = "";
+  if (!unassigned.length) { container.innerHTML = '<p class="muted sm" style="padding:6px 0">All guests seated!</p>'; return; }
+  unassigned.forEach(g => {
+    const chip = document.createElement("div");
+    chip.className = "guest-chip" + (seatingState.selected === g.id ? " selected" : "");
+    chip.textContent = g.name;
+    chip.onclick = () => { seatingState.selected = seatingState.selected === g.id ? null : g.id; renderSeating(); };
+    const del = document.createElement("button");
+    del.className = "guest-chip-del"; del.textContent = "\xd7";
+    del.onclick = e => { e.stopPropagation(); seatingState.guests = seatingState.guests.filter(x => x.id !== g.id); renderSeating(); };
+    chip.appendChild(del); container.appendChild(chip);
+  });
+}
+
+function renderTables() {
+  const grid = document.getElementById("c-tables-grid"); grid.innerHTML = "";
+  for (let t = 0; t < seatingState.tables; t++) {
+    const tableEl = document.createElement("div"); tableEl.className = "seating-table-card";
+    const count = seatingState.guests.filter(g => g.tableId === t).length;
+    tableEl.innerHTML = `<div class="seating-table-header"><span>Table ${t + 1}</span><span class="muted sm">${count}/${seatingState.seatsPerTable}</span></div><div class="seating-seats" id="c-tbl-${t}"></div>`;
+    const seatsEl = tableEl.querySelector(".seating-seats");
+    for (let s = 0; s < seatingState.seatsPerTable; s++) {
+      const seat = document.createElement("div");
+      const guest = seatingState.guests.find(g => g.tableId === t && g.seat === s);
+      seat.className = "seating-seat " + (guest ? "filled" : "empty");
+      seat.textContent = guest ? guest.name.split(" ")[0] : "+";
+      seat.title = guest ? guest.name : "Click to seat a guest";
+      seat.onclick = () => {
+        if (guest) { guest.tableId = null; guest.seat = null; renderSeating(); }
+        else if (seatingState.selected) {
+          const g = seatingState.guests.find(x => x.id === seatingState.selected);
+          if (g) { g.tableId = t; g.seat = s; seatingState.selected = null; renderSeating(); }
+        }
+      };
+      seatsEl.appendChild(seat);
+    }
+    grid.appendChild(tableEl);
+  }
+}
+
+function updateSeatingStats() {
+  const total = seatingState.guests.length;
+  const seated = seatingState.guests.filter(g => g.tableId !== null).length;
+  document.getElementById("c-seating-stats").textContent = `${total} guest${total !== 1 ? "s" : ""} · ${seated} seated`;
+}
+
+document.getElementById("c-guest-add").onclick = () => {
+  const input = document.getElementById("c-guest-input"), name = input.value.trim(); if (!name) return;
+  seatingState.guests.push({ id: crypto.randomUUID(), name, tableId: null, seat: null }); input.value = ""; renderSeating();
+};
+document.getElementById("c-guest-input").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("c-guest-add").click(); });
+document.getElementById("c-seating-clear").onclick = () => {
+  if (!seatingState.guests.length) return;
+  if (confirm("Remove all guests and clear the seating chart?")) { seatingState.guests = []; seatingState.selected = null; renderSeating(); }
+};
+
+// ═══ CARD GENERATOR ═══════════════════════════════════════════════════════════
+function initCard() {
+  const p = state.currentUser?.profile || {};
+  const coupleEl = document.getElementById("c-card-couple");
+  const dateEl = document.getElementById("c-card-date");
+  const venueEl = document.getElementById("c-card-venue");
+  if (!coupleEl.value && p.partner1 && p.partner2) coupleEl.value = `${p.partner1} & ${p.partner2}`;
+  if (!dateEl.value && p.weddingDate) {
+    try { const d = new Date(p.weddingDate + "T12:00:00"); dateEl.value = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }); } catch {}
+  }
+  if (!venueEl.value && p.venue) venueEl.value = p.venue;
+  renderCard();
+}
+
+function renderCard() {
+  const type = document.getElementById("c-card-type").value;
+  const couple = document.getElementById("c-card-couple").value || "Couple Names";
+  const date   = document.getElementById("c-card-date").value   || "Wedding Date";
+  const venue  = document.getElementById("c-card-venue").value  || "Venue";
+  const guest  = document.getElementById("c-card-guest").value  || "Guest Name";
+  const msg    = document.getElementById("c-card-msg").value    || "Thank you for celebrating this special day with us. Your presence made our wedding truly memorable.";
+  const menu   = document.getElementById("c-card-menu").value   || "Starter: Garden Salad\nMain: Roasted Chicken or Vegetable Risotto\nDessert: Wedding Cake";
+
+  document.getElementById("c-card-guest-label").style.display = type === "place" ? "" : "none";
+  document.getElementById("c-card-msg-label").style.display   = (type === "thankyou" || type === "invitation") ? "" : "none";
+  document.getElementById("c-card-menu-label").style.display  = type === "menu" ? "" : "none";
+
+  const preview = document.getElementById("c-card-preview-area");
+  if (type === "place") {
+    preview.innerHTML = `<div class="wedding-card place-card"><div class="card-flourish">✦</div><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><p class="card-label">Please be seated</p><h2 class="card-guest-name">${esc(guest)}</h2></div>`;
+  } else if (type === "thankyou") {
+    preview.innerHTML = `<div class="wedding-card thankyou-card"><div class="card-flourish">✸</div><h2 class="card-title">Thank You</h2><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><p class="card-body-text">${esc(msg)}</p><p class="card-date">${esc(date)}</p></div>`;
+  } else if (type === "menu") {
+    preview.innerHTML = `<div class="wedding-card menu-card"><div class="card-flourish">✦</div><h2 class="card-title">Menu</h2><p class="card-couple-name">${esc(couple)}</p><div class="card-divider"></div><div class="card-menu-items">${menu.split("\n").map(l => `<p>${esc(l)}</p>`).join("")}</div></div>`;
+  } else {
+    preview.innerHTML = `<div class="wedding-card invitation-card"><div class="card-flourish">✦ ✦ ✦</div><p class="card-eyebrow">Together with their families</p><h1 class="card-couple-big">${esc(couple)}</h1><p class="card-label">request the honour of your presence</p><div class="card-divider"></div><p class="card-date">${esc(date)}</p><p class="card-venue">${esc(venue)}</p>${msg !== "Thank you for celebrating this special day with us. Your presence made our wedding truly memorable." ? `<p class="card-body-text" style="margin-top:12px">${esc(msg)}</p>` : ""}</div>`;
+  }
+}
+
+["c-card-type","c-card-couple","c-card-date","c-card-venue","c-card-guest","c-card-msg","c-card-menu"].forEach(id => {
+  const el = document.getElementById(id); el.addEventListener("input", renderCard); el.addEventListener("change", renderCard);
+});
+
+document.getElementById("c-card-download").onclick = () => {
+  const cardEl = document.getElementById("c-card-preview-area").querySelector(".wedding-card");
+  if (!cardEl) return;
+  const styles = `body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Georgia,'Times New Roman',serif;background:#faf8f5}.wedding-card{background:#fff;border:1px solid #e8dfd0;border-radius:8px;padding:40px 36px;max-width:340px;width:100%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.08)}.card-flourish{font-size:1.2rem;color:#b8960c;margin-bottom:14px;letter-spacing:6px}.card-divider{width:60px;height:1px;background:#d4c5a9;margin:14px auto}.card-couple-name{font-size:.85rem;color:#8b7355;letter-spacing:.15em;text-transform:uppercase;margin:0 0 6px}.card-label{font-size:.82rem;color:#9a8a76;margin:0 0 8px;font-style:italic}.card-guest-name{font-size:1.7rem;color:#3a2e24;margin:0;font-weight:400}.card-title{font-size:1.9rem;color:#3a2e24;margin:0 0 8px;font-weight:400;letter-spacing:.05em}.card-body-text{font-size:.85rem;color:#6b5d4e;line-height:1.7;margin:0 0 10px;font-style:italic}.card-date{font-size:.82rem;color:#8b7355;letter-spacing:.1em;margin:0;text-transform:uppercase}.card-venue{font-size:.85rem;color:#6b5d4e;margin:4px 0 0}.card-eyebrow{font-size:.78rem;color:#9a8a76;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}.card-couple-big{font-size:2rem;color:#3a2e24;margin:0 0 8px;font-weight:400}.card-menu-items p{font-size:.82rem;color:#6b5d4e;margin:3px 0}`;
+  const win = window.open("", "_blank");
+  win.document.write(`<!DOCTYPE html><html><head><title>Wedding Card</title><style>${styles}</style></head><body>${cardEl.outerHTML}</body></html>`);
+  win.document.close(); win.focus(); win.print();
+};

@@ -177,23 +177,119 @@
 
       <!-- Main chat -->
       <main class="m-main">
-        <header class="m-topbar">
-          <div class="m-topbar-info">
-            <div class="m-avatar-sm peach" id="c-topbar-avatar">G</div>
-            <div><strong id="c-chat-title">Golden Hour Studio</strong><span class="muted sm" id="c-chat-subtitle">Photographer</span></div>
+
+        <!-- Tab navigation -->
+        <nav class="c-tab-nav">
+          <button class="c-tab-btn active" data-tab="chat">&#128172; Chat</button>
+          <button class="c-tab-btn" data-tab="discover">&#128269; Discover</button>
+          <button class="c-tab-btn" data-tab="seating">&#129681; Seating</button>
+          <button class="c-tab-btn" data-tab="cards">&#128140; Cards</button>
+        </nav>
+
+        <!-- ── Chat Panel ── -->
+        <div id="c-tab-chat" class="c-tab-panel">
+          <header class="m-topbar">
+            <div class="m-topbar-info">
+              <div class="m-avatar-sm peach" id="c-topbar-avatar">G</div>
+              <div><strong id="c-chat-title">Golden Hour Studio</strong><span class="muted sm" id="c-chat-subtitle">Photographer</span></div>
+            </div>
+            <div class="m-topbar-actions">
+              <span class="retrieval-pill" id="c-retrieval">Retrieval idle</span>
+            </div>
+          </header>
+          <section id="c-chat-feed" class="m-feed" aria-live="polite"></section>
+          <section class="m-composer">
+            <div class="m-composer-hint"><span>Tip: <code>@ai</code> ask questions &middot; <code>@ai generate doc</code> create documents</span></div>
+            <div class="m-composer-row">
+              <textarea id="c-input" rows="1" placeholder="Type a message..." disabled></textarea>
+              <button id="c-send" class="btn btn-send" disabled>&#10148;</button>
+            </div>
+          </section>
+        </div>
+
+        <!-- ── Discover Panel ── -->
+        <div id="c-tab-discover" class="c-tab-panel hidden">
+          <header class="m-topbar">
+            <div class="m-topbar-info">
+              <strong>Discover Vendors</strong>
+              <span class="muted sm">Find the perfect vendors for your wedding</span>
+            </div>
+          </header>
+          <div class="discover-body">
+            <div class="discover-filters" id="c-discover-filters">
+              <button class="filter-pill active" data-cat="all">All</button>
+              <button class="filter-pill" data-cat="photographer">Photographer</button>
+              <button class="filter-pill" data-cat="florist">Florist</button>
+              <button class="filter-pill" data-cat="caterer">Caterer</button>
+              <button class="filter-pill" data-cat="dj-music">DJ / Music</button>
+              <button class="filter-pill" data-cat="planner">Planner</button>
+              <button class="filter-pill" data-cat="venue">Venue</button>
+              <button class="filter-pill" data-cat="bakery">Bakery</button>
+            </div>
+            <div class="discover-grid" id="c-vendor-discover-grid"></div>
           </div>
-          <div class="m-topbar-actions">
-            <span class="retrieval-pill" id="c-retrieval">Retrieval idle</span>
+        </div>
+
+        <!-- ── Seating Panel ── -->
+        <div id="c-tab-seating" class="c-tab-panel hidden">
+          <header class="m-topbar">
+            <div class="m-topbar-info">
+              <strong>Seating Chart</strong>
+              <span class="muted sm" id="c-seating-stats">0 guests &middot; 0 seated</span>
+            </div>
+            <div class="m-topbar-actions">
+              <button class="btn btn-ghost btn-sm" id="c-seating-clear">Clear All</button>
+            </div>
+          </header>
+          <div class="seating-body">
+            <div class="seating-sidebar-panel">
+              <p class="sidebar-section-title">Add Guests</p>
+              <div class="seating-input-row">
+                <input id="c-guest-input" type="text" placeholder="Guest name..." maxlength="40">
+                <button class="btn btn-primary btn-sm" id="c-guest-add">Add</button>
+              </div>
+              <p class="sidebar-section-title" style="margin-top:6px">Unassigned</p>
+              <div class="seating-unassigned" id="c-guest-unassigned"><p class="muted sm" style="padding:6px 0">No guests yet.</p></div>
+            </div>
+            <div class="seating-main-panel">
+              <div class="seating-tables-grid" id="c-tables-grid"></div>
+            </div>
           </div>
-        </header>
-        <section id="c-chat-feed" class="m-feed" aria-live="polite"></section>
-        <section class="m-composer">
-          <div class="m-composer-hint"><span>Tip: <code>@ai</code> ask questions &middot; <code>@ai generate doc</code> create documents</span></div>
-          <div class="m-composer-row">
-            <textarea id="c-input" rows="1" placeholder="Type a message..." disabled></textarea>
-            <button id="c-send" class="btn btn-send" disabled>&#10148;</button>
+        </div>
+
+        <!-- ── Cards Panel ── -->
+        <div id="c-tab-cards" class="c-tab-panel hidden">
+          <header class="m-topbar">
+            <div class="m-topbar-info">
+              <strong>Card Generator</strong>
+              <span class="muted sm">Design and print wedding cards</span>
+            </div>
+          </header>
+          <div class="cards-body">
+            <div class="cards-form-panel">
+              <label class="f"><span>Card Type</span>
+                <select id="c-card-type">
+                  <option value="place">Place Card</option>
+                  <option value="thankyou">Thank You Card</option>
+                  <option value="menu">Menu Card</option>
+                  <option value="invitation">Invitation</option>
+                </select>
+              </label>
+              <label class="f"><span>Couple Names</span><input id="c-card-couple" type="text" placeholder="e.g. Mia &amp; Ethan"></label>
+              <label class="f"><span>Wedding Date</span><input id="c-card-date" type="text" placeholder="e.g. June 21, 2025"></label>
+              <label class="f"><span>Venue</span><input id="c-card-venue" type="text" placeholder="e.g. Rosewood Garden Estate"></label>
+              <label class="f" id="c-card-guest-label"><span>Guest Name</span><input id="c-card-guest" type="text" placeholder="Guest's name"></label>
+              <label class="f" id="c-card-msg-label"><span>Message</span><textarea id="c-card-msg" rows="3" placeholder="Thank you for celebrating with us..."></textarea></label>
+              <label class="f" id="c-card-menu-label"><span>Menu Items</span><textarea id="c-card-menu" rows="4" placeholder="Starter: Garden Salad&#10;Main: Roasted Chicken&#10;Dessert: Wedding Cake"></textarea></label>
+              <button class="btn btn-primary w100" id="c-card-download" style="margin-top:4px">&#128424; Print / Save as PDF</button>
+            </div>
+            <div class="cards-preview-panel">
+              <p class="sidebar-section-title">Preview</p>
+              <div class="card-preview-area" id="c-card-preview-area"></div>
+            </div>
           </div>
-        </section>
+        </div>
+
       </main>
     </div>
 
