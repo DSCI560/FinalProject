@@ -541,6 +541,41 @@
     .modal-footer-text { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 12px; }
     .modal-footer-text a { color: var(--gold-2); font-weight: 600; cursor: pointer; }
 
+    /* ── FAQ ────────────────────────────────────────────── */
+    .faq-section { padding: 110px 0; background: var(--bg-2); }
+    .faq-header { text-align: center; margin-bottom: 56px; }
+    .faq-list { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    .faq-item {
+      background: var(--bg); border: 1px solid var(--line);
+      border-radius: var(--r); overflow: hidden;
+      transition: box-shadow .2s, border-color .2s;
+    }
+    .faq-item.open { border-color: rgba(193,167,117,.42); box-shadow: var(--shadow); }
+    .faq-question {
+      width: 100%; text-align: left; background: none; border: none;
+      padding: 22px 28px; display: flex; align-items: center;
+      justify-content: space-between; gap: 16px;
+      cursor: pointer; font: inherit;
+      transition: background .14s;
+    }
+    .faq-question:hover { background: var(--gold-soft); }
+    .faq-question-text {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.05rem; font-weight: 500;
+      color: var(--ink-2); line-height: 1.35;
+    }
+    .faq-chevron {
+      width: 20px; height: 20px; color: var(--gold);
+      flex-shrink: 0; transition: transform .28s ease;
+    }
+    .faq-item.open .faq-chevron { transform: rotate(180deg); }
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height .36s ease; }
+    .faq-answer-inner {
+      padding: 16px 28px 22px;
+      font-size: .9rem; color: var(--muted); line-height: 1.75;
+      border-top: 1px solid var(--line);
+    }
+
     /* ── Responsive ─────────────────────────────────────── */
     @media (max-width: 900px) {
       .footer-inner { grid-template-columns: 1fr 1fr; }
@@ -573,6 +608,7 @@
         <li><a href="#features">Features</a></li>
         <li><a href="#how">How It Works</a></li>
         <li><a href="#reviews">Reviews</a></li>
+        <li><a href="#faq">FAQ</a></li>
       </ul>
       <div class="nav-right">
         <button class="nav-login" id="open-login">Log In</button>
@@ -590,6 +626,7 @@
     <a href="#features" class="mobile-link">Features</a>
     <a href="#how" class="mobile-link">How It Works</a>
     <a href="#reviews" class="mobile-link">Reviews</a>
+    <a href="#faq" class="mobile-link">FAQ</a>
     <button class="btn btn-primary" style="margin-top:8px" onclick="openLogin()">Log In</button>
     <a href="index.html" class="btn btn-ghost" style="margin-top:4px">Start Planning</a>
   </div>
@@ -792,6 +829,71 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FAQ ══════════════════════════════════════════════════════════════ -->
+  <section class="faq-section" id="faq">
+    <div class="container">
+      <div class="faq-header">
+        <span class="eyebrow">Common Questions</span>
+        <h2 class="section-title">Everything You Need<br>to Know About WedBoard</h2>
+        <div class="gold-divider" style="margin:18px auto"></div>
+        <p class="section-sub" style="margin:0 auto">Planning shouldn't mean answering the same question twice. Here are ours.</p>
+      </div>
+      <div class="faq-list reveal">
+
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span class="faq-question-text">What exactly does WedBoard do?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">WedBoard is an AI-powered wedding planning workspace that brings your vendors, guest list, seating chart, and design tools into one unified space. Instead of managing a dozen spreadsheets and email threads, you chat with your vendors directly, ask AI questions about contracts and timelines, visually arrange seating, and design print-ready cards — all without leaving a single tab.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span class="faq-question-text">How does the AI assistant actually help with wedding planning?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">The AI reads your uploaded vendor documents — contracts, menus, proposals — and answers your questions in plain English. Ask things like <em>"What's the cancellation policy for the florist?"</em> or <em>"Generate a ceremony timeline for 4:30 PM."</em> You can also type <strong>@ai</strong> in any conversation to get instant suggestions, draft vendor messages, or get checklists for upcoming milestones.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span class="faq-question-text">Do I need to create an account to start planning?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">No — WedBoard works entirely in your browser and saves your data locally. You can start building your vendor list, seating chart, and cards right now without any account. Creating an account lets you log in from any device and share your workspace with your partner or vendors. There is no credit card required at any stage.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span class="faq-question-text">How does vendor management work? Can my vendors join?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">You add vendors to your workspace from our curated discovery tab, or by entering their details manually. Each vendor gets their own chat channel where you can message them, upload their documents, and ask the AI context-aware questions about that vendor specifically. Vendors can be invited to create their own portal login, or you can manage the communication yourself — it is completely flexible.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFaq(this)">
+            <span class="faq-question-text">Can I use the seating chart and budget tools without the AI?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">Absolutely. Every tool in WedBoard — the seating chart, budget tracker, card studio, bridal party planner, and checklist — works fully offline without any AI or account setup. The AI layer is an enhancement, not a requirement. You can plan your entire wedding using WedBoard as a beautifully designed organizer, and add AI assistance whenever you are ready.</div>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
@@ -1008,6 +1110,21 @@
       saveUsers(users);
       localStorage.setItem('wedboard:session', JSON.stringify({ userId: id, username, role: 'couple' }));
       window.location.href = 'index.html';
+    }
+
+    // ── FAQ Accordion ────────────────────────────────────
+    function toggleFaq(btn) {
+      const item = btn.closest('.faq-item');
+      const answer = item.querySelector('.faq-answer');
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item.open').forEach(i => {
+        i.classList.remove('open');
+        i.querySelector('.faq-answer').style.maxHeight = '0';
+      });
+      if (!isOpen) {
+        item.classList.add('open');
+        answer.style.maxHeight = answer.scrollHeight + 'px';
+      }
     }
 
     // ── Smooth scroll for anchor links ───────────────────

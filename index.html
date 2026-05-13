@@ -188,6 +188,9 @@
           <button class="c-tab-btn" data-tab="discover">&#128269; Discover</button>
           <button class="c-tab-btn" data-tab="seating">&#129681; Seating</button>
           <button class="c-tab-btn" data-tab="cards">&#128140; Cards</button>
+          <button class="c-tab-btn" data-tab="party">&#128140; Party</button>
+          <button class="c-tab-btn" data-tab="budget">&#128176; Budget</button>
+          <button class="c-tab-btn" data-tab="checklist">&#9989; Checklist</button>
         </nav>
 
         <!-- ── Chat Panel ── -->
@@ -381,7 +384,127 @@
           </div>
         </div>
 
+        <!-- ── Bridal Party Panel ── -->
+        <div id="c-tab-party" class="c-tab-panel hidden">
+          <header class="m-topbar">
+            <div class="m-topbar-info"><strong>Bridal Party</strong><span class="muted sm">Assign roles and manage your wedding party</span></div>
+            <div class="m-topbar-actions"><button class="btn btn-primary btn-sm" id="c-party-add-btn">+ Add Member</button></div>
+          </header>
+          <div class="party-body" id="c-party-body"></div>
+        </div>
+
+        <!-- ── Budget Tracker Panel ── -->
+        <div id="c-tab-budget" class="c-tab-panel hidden">
+          <header class="m-topbar">
+            <div class="m-topbar-info"><strong>Budget Tracker</strong><span class="muted sm" id="c-budget-stat">Set your total budget to begin</span></div>
+            <div class="m-topbar-actions">
+              <button class="btn btn-ghost btn-sm" id="c-budget-set-btn">&#9998; Set Budget</button>
+              <button class="btn btn-primary btn-sm" id="c-budget-add-btn">+ Add Expense</button>
+            </div>
+          </header>
+          <div class="budget-body">
+            <div id="c-budget-overview"></div>
+            <div class="budget-cats-grid" id="c-budget-cats"></div>
+          </div>
+        </div>
+
+        <!-- ── Checklist Panel ── -->
+        <div id="c-tab-checklist" class="c-tab-panel hidden">
+          <header class="m-topbar">
+            <div class="m-topbar-info"><strong>Wedding Checklist</strong><span class="muted sm" id="c-checklist-stat">0 of 0 tasks completed</span></div>
+            <div class="m-topbar-actions"><button class="btn btn-primary btn-sm" id="c-checklist-add-btn">+ Add Task</button></div>
+          </header>
+          <div class="checklist-body" id="c-checklist-body"></div>
+        </div>
+
       </main>
+    </div>
+
+    <!-- ── Party Member Modal ── -->
+    <div id="party-modal" class="modal-overlay hidden">
+      <div class="modal-box" style="max-width:420px">
+        <div class="modal-header"><h3>Add Party Member</h3><button class="modal-close" id="party-modal-close">&#10005;</button></div>
+        <div class="modal-body">
+          <label class="f"><span>Name</span><input id="party-name" type="text" placeholder="Full name" maxlength="60"></label>
+          <label class="f"><span>Role</span>
+            <select id="party-role">
+              <option value="">Select role…</option>
+              <option>Maid of Honor</option><option>Best Man</option><option>Bridesmaid</option>
+              <option>Groomsman</option><option>Matron of Honor</option><option>Usher</option>
+              <option>Flower Girl</option><option>Ring Bearer</option><option>Officiant</option>
+              <option>Parent of Bride</option><option>Parent of Groom</option><option>Guest of Honor</option>
+            </select>
+          </label>
+          <label class="f"><span>Email (optional)</span><input id="party-email" type="email" placeholder="name@example.com"></label>
+          <label class="f"><span>Phone (optional)</span><input id="party-phone" type="tel" placeholder="+1 (555) 000-0000"></label>
+          <label class="f"><span>Note (optional)</span><input id="party-note" type="text" placeholder="e.g. Bride's college roommate"></label>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn--primary" id="party-modal-save">Save Member</button></div>
+      </div>
+    </div>
+
+    <!-- ── Set Total Budget Modal ── -->
+    <div id="budget-set-modal" class="modal-overlay hidden">
+      <div class="modal-box" style="max-width:360px">
+        <div class="modal-header"><h3>Set Total Budget</h3><button class="modal-close" id="budget-set-close">&#10005;</button></div>
+        <div class="modal-body">
+          <label class="f"><span>Total Wedding Budget ($)</span><input id="budget-total-input" type="number" min="0" step="500" placeholder="e.g. 30000"></label>
+          <p class="modal-hint">This is your overall spending cap. We'll track how your expenses compare.</p>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn--primary" id="budget-set-save">Save Budget</button></div>
+      </div>
+    </div>
+
+    <!-- ── Add Expense Modal ── -->
+    <div id="budget-add-modal" class="modal-overlay hidden">
+      <div class="modal-box" style="max-width:440px">
+        <div class="modal-header"><h3>Add Expense</h3><button class="modal-close" id="budget-add-close">&#10005;</button></div>
+        <div class="modal-body">
+          <label class="f"><span>Description</span><input id="exp-desc" type="text" placeholder="e.g. Venue deposit" maxlength="80"></label>
+          <label class="f"><span>Category</span>
+            <select id="exp-cat">
+              <option value="venue">Venue</option><option value="catering">Catering</option>
+              <option value="photography">Photography</option><option value="florals">Florals</option>
+              <option value="music">Music / DJ</option><option value="attire">Attire</option>
+              <option value="invitations">Invitations</option><option value="decor">Décor</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <div class="row">
+            <label class="f"><span>Estimated ($)</span><input id="exp-est" type="number" min="0" placeholder="0"></label>
+            <label class="f"><span>Actual / Paid ($)</span><input id="exp-act" type="number" min="0" placeholder="0"></label>
+          </div>
+          <label class="f"><span>Due / Payment Date</span><input id="exp-date" type="date"></label>
+          <label class="f" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+            <input type="checkbox" id="exp-paid" style="width:auto;margin:0;accent-color:var(--accent)">
+            <span style="text-transform:none;font-size:.85rem;font-weight:400;color:var(--ink)">Mark as fully paid</span>
+          </label>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn--primary" id="budget-add-save">Add Expense</button></div>
+      </div>
+    </div>
+
+    <!-- ── Add Task Modal ── -->
+    <div id="checklist-add-modal" class="modal-overlay hidden">
+      <div class="modal-box" style="max-width:420px">
+        <div class="modal-header"><h3>Add Task</h3><button class="modal-close" id="checklist-add-close">&#10005;</button></div>
+        <div class="modal-body">
+          <label class="f"><span>Task</span><input id="task-title" type="text" placeholder="e.g. Book rehearsal dinner venue" maxlength="100"></label>
+          <label class="f"><span>Timeline</span>
+            <select id="task-timeline">
+              <option value="12+ Months">12+ Months Out</option>
+              <option value="9–12 Months">9–12 Months Out</option>
+              <option value="6–9 Months">6–9 Months Out</option>
+              <option value="3–6 Months" selected>3–6 Months Out</option>
+              <option value="1–3 Months">1–3 Months Out</option>
+              <option value="1 Week Out">Final Week</option>
+            </select>
+          </label>
+          <label class="f"><span>Due Date (optional)</span><input id="task-due" type="date"></label>
+          <label class="f"><span>Notes (optional)</span><input id="task-notes" type="text" placeholder="Any details or reminders…" maxlength="120"></label>
+        </div>
+        <div class="modal-footer"><button class="modal-btn modal-btn--primary" id="checklist-add-save">Add Task</button></div>
+      </div>
     </div>
 
     <!-- Slide-over panels -->

@@ -688,9 +688,12 @@ document.querySelectorAll(".c-tab-btn").forEach(btn => {
     btn.classList.add("active");
     document.querySelectorAll(".c-tab-panel").forEach(p => p.classList.add("hidden"));
     document.getElementById("c-tab-" + btn.dataset.tab).classList.remove("hidden");
-    if (btn.dataset.tab === "discover") renderDiscovery();
-    if (btn.dataset.tab === "seating") renderSeating();
-    if (btn.dataset.tab === "cards") initCard();
+    if (btn.dataset.tab === "discover")  renderDiscovery();
+    if (btn.dataset.tab === "seating")   renderSeating();
+    if (btn.dataset.tab === "cards")     initCard();
+    if (btn.dataset.tab === "party")     renderParty();
+    if (btn.dataset.tab === "budget")    renderBudget();
+    if (btn.dataset.tab === "checklist") renderChecklist();
   });
 });
 
@@ -1259,6 +1262,201 @@ document.getElementById("c-tables-dec").onclick = () => { if (seatingState.table
 document.getElementById("c-tables-inc").onclick = () => { if (seatingState.tables < 20) { seatingState.tables++; updateSeatingConfig(); } };
 document.getElementById("c-seats-dec").onclick  = () => { if (seatingState.seatsPerTable > 2) { seatingState.seatsPerTable--; updateSeatingConfig(); } };
 document.getElementById("c-seats-inc").onclick  = () => { if (seatingState.seatsPerTable < 16) { seatingState.seatsPerTable++; updateSeatingConfig(); } };
+
+// ═══ BRIDAL PARTY ══════════════════════════════════════════════════════════════
+const ROLE_COLORS = { "Maid of Honor":"#D4909E","Best Man":"#6B9FD4","Bridesmaid":"#EDAAB6","Groomsman":"#7AA890","Matron of Honor":"#C47575","Usher":"#5E9978","Flower Girl":"#F0B8C4","Ring Bearer":"#A0B8D8","Officiant":"#C1A775","Parent of Bride":"#B090C8","Parent of Groom":"#8898C8","Guest of Honor":"#C8A0B0" };
+function getPartyMembers() { try { return JSON.parse(localStorage.getItem("wedboard:party") || "[]"); } catch { return []; } }
+function savePartyMembers(m) { localStorage.setItem("wedboard:party", JSON.stringify(m)); }
+
+function renderParty() {
+  const members = getPartyMembers();
+  const body = document.getElementById("c-party-body");
+  if (!members.length) {
+    body.innerHTML = '<div class="party-empty"><div style="font-size:2.2rem;margin-bottom:14px">&#128140;</div><p style="font-weight:600;color:var(--ink2);margin-bottom:6px">No party members yet</p><p>Click <strong>+ Add Member</strong> to assign roles to your wedding party.</p></div>';
+    return;
+  }
+  const groups = {};
+  members.forEach(m => { (groups[m.role] = groups[m.role] || []).push(m); });
+  body.innerHTML = "";
+  Object.entries(groups).forEach(([role, ppl]) => {
+    const g = document.createElement("div"); g.className = "party-role-group";
+    g.innerHTML = `<div class="party-role-group-title">${esc(role)} <span style="font-weight:400;opacity:.55">(${ppl.length})</span></div><div class="party-cards" id="pg-${esc(role)}"></div>`;
+    const grid = g.querySelector(".party-cards");
+    ppl.forEach(p => {
+      const color = ROLE_COLORS[p.role] || "#C1A775";
+      const initials = p.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+      const card = document.createElement("div"); card.className = "party-card";
+      card.innerHTML = `<div class="party-card-avatar" style="background:${color}">${initials}</div><div class="party-card-name">${esc(p.name)}</div><span class="party-card-role-badge" style="background:${color}">${esc(p.role)}</span>${p.email || p.phone ? `<div class="party-card-meta">${[p.email, p.phone].filter(Boolean).map(v => `<div>${esc(v)}</div>`).join("")}</div>` : ""}${p.note ? `<div class="party-card-meta" style="margin-top:5px;font-style:italic">${esc(p.note)}</div>` : ""}<button class="party-card-del" title="Remove">&times;</button>`;
+      card.querySelector(".party-card-del").onclick = e => { e.stopPropagation(); savePartyMembers(getPartyMembers().filter(x => x.id !== p.id)); renderParty(); };
+      grid.appendChild(card);
+    });
+    body.appendChild(g);
+  });
+}
+document.getElementById("c-party-add-btn").onclick = () => {
+  ["party-name","party-email","party-phone","party-note"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("party-role").value = "";
+  document.getElementById("party-modal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("party-name").focus(), 60);
+};
+document.getElementById("party-modal-close").onclick = () => document.getElementById("party-modal").classList.add("hidden");
+document.getElementById("party-modal").addEventListener("click", e => { if (e.target === document.getElementById("party-modal")) e.target.classList.add("hidden"); });
+document.getElementById("party-modal-save").onclick = () => {
+  const name = document.getElementById("party-name").value.trim(), role = document.getElementById("party-role").value;
+  if (!name) { document.getElementById("party-name").focus(); return; }
+  if (!role) { document.getElementById("party-role").focus(); return; }
+  const all = getPartyMembers();
+  all.push({ id: crypto.randomUUID(), name, role, email: document.getElementById("party-email").value.trim(), phone: document.getElementById("party-phone").value.trim(), note: document.getElementById("party-note").value.trim() });
+  savePartyMembers(all); document.getElementById("party-modal").classList.add("hidden"); renderParty();
+};
+
+// ═══ BUDGET TRACKER ════════════════════════════════════════════════════════════
+const CAT_META = {
+  venue:       { name:"Venue",       icon:"🏛️", color:"#C1A775" },
+  catering:    { name:"Catering",    icon:"🍽️", color:"#D4909E" },
+  photography: { name:"Photography", icon:"📸",  color:"#7AA890" },
+  florals:     { name:"Florals",     icon:"💐",  color:"#B5A0C8" },
+  music:       { name:"Music / DJ",  icon:"🎵",  color:"#6B9FD4" },
+  attire:      { name:"Attire",      icon:"👗",  color:"#D4A07A" },
+  invitations: { name:"Invitations", icon:"✉️",  color:"#90B890" },
+  decor:       { name:"Décor",       icon:"✨",  color:"#C8A0B0" },
+  other:       { name:"Other",       icon:"📋",  color:"#9B917E" },
+};
+function getBudgetData() { try { return JSON.parse(localStorage.getItem("wedboard:budget") || "null"); } catch { return null; } }
+function saveBudgetData(d) { localStorage.setItem("wedboard:budget", JSON.stringify(d)); }
+function budgetData()    { const d = getBudgetData(); return d || { total: 0, expenses: [] }; }
+
+function renderBudget() {
+  const d = budgetData(), exp = d.expenses || [];
+  const spent = exp.reduce((s, e) => s + (e.actual || 0), 0);
+  const est   = exp.reduce((s, e) => s + (e.estimated || 0), 0);
+  const pct   = d.total > 0 ? Math.min((spent / d.total) * 100, 100) : 0;
+  const over  = d.total > 0 && spent > d.total;
+  document.getElementById("c-budget-stat").textContent = d.total > 0
+    ? `$${spent.toLocaleString()} of $${d.total.toLocaleString()} spent · Est. $${est.toLocaleString()}`
+    : "Set your total budget to begin";
+
+  document.getElementById("c-budget-overview").innerHTML = d.total > 0 ? `
+    <div class="budget-overview-card">
+      <div class="budget-ov-row"><span class="budget-ov-label">Total Budget</span><span class="budget-ov-amount">$${d.total.toLocaleString()}</span></div>
+      <div class="budget-bar-wrap"><div class="budget-bar-fill${over ? " over" : ""}" style="width:${pct}%"></div></div>
+      <div class="budget-bar-meta"><span>Spent: $${spent.toLocaleString()}</span><span>${over ? "⚠ Over budget by $" + (spent - d.total).toLocaleString() : "Remaining: $" + (d.total - spent).toLocaleString()}</span></div>
+    </div>` : "";
+
+  const grid = document.getElementById("c-budget-cats"); grid.innerHTML = "";
+  const usedCats = [...new Set(exp.map(e => e.category))];
+  if (!usedCats.length) {
+    grid.innerHTML = '<div class="party-empty" style="grid-column:1/-1"><div style="font-size:2rem;margin-bottom:12px">&#128176;</div><p style="font-weight:600;color:var(--ink2);margin-bottom:6px">No expenses yet</p><p>Click <strong>+ Add Expense</strong> to start tracking your budget.</p></div>';
+    return;
+  }
+  usedCats.forEach(catId => {
+    const meta = CAT_META[catId] || CAT_META.other;
+    const catExp = exp.filter(e => e.category === catId);
+    const cAct = catExp.reduce((s,e)=>s+(e.actual||0),0), cEst = catExp.reduce((s,e)=>s+(e.estimated||0),0);
+    const cPct = cEst > 0 ? Math.min((cAct/cEst)*100,100) : 0;
+    const card = document.createElement("div"); card.className = "budget-cat-card";
+    card.innerHTML = `<div class="budget-cat-head"><div class="budget-cat-icon" style="background:${meta.color}22">${meta.icon}</div><span class="budget-cat-name">${meta.name}</span></div><div class="budget-cat-amounts"><span>Est. $${cEst.toLocaleString()}</span><span style="color:${cAct>cEst?"var(--danger)":"inherit"}">Actual $${cAct.toLocaleString()}</span></div><div class="budget-cat-bar-wrap"><div class="budget-cat-bar-fill" style="width:${cPct}%;background:${meta.color}"></div></div><div class="budget-cat-expenses">${catExp.map(e=>`<div class="expense-row" data-id="${e.id}"><span class="expense-desc" title="${esc(e.description)}">${esc(e.description)}</span><span class="expense-amount">$${(e.actual||e.estimated||0).toLocaleString()}</span>${e.paid?'<span class="expense-paid-badge">Paid</span>':e.dueDate?`<span class="expense-due-badge">Due ${e.dueDate}</span>`:""}<button class="expense-del" data-id="${e.id}" title="Remove">&times;</button></div>`).join("")}</div>`;
+    card.querySelectorAll(".expense-del").forEach(btn => {
+      btn.onclick = ev => { ev.stopPropagation(); const bd = budgetData(); bd.expenses = bd.expenses.filter(x => x.id !== btn.dataset.id); saveBudgetData(bd); renderBudget(); };
+    });
+    grid.appendChild(card);
+  });
+}
+document.getElementById("c-budget-set-btn").onclick = () => {
+  document.getElementById("budget-total-input").value = budgetData().total || "";
+  document.getElementById("budget-set-modal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("budget-total-input").focus(), 60);
+};
+document.getElementById("budget-set-close").onclick = () => document.getElementById("budget-set-modal").classList.add("hidden");
+document.getElementById("budget-set-modal").addEventListener("click", e => { if (e.target === document.getElementById("budget-set-modal")) e.target.classList.add("hidden"); });
+document.getElementById("budget-set-save").onclick = () => {
+  const val = parseFloat(document.getElementById("budget-total-input").value);
+  if (isNaN(val) || val < 0) { document.getElementById("budget-total-input").focus(); return; }
+  const bd = budgetData(); bd.total = val; saveBudgetData(bd);
+  document.getElementById("budget-set-modal").classList.add("hidden"); renderBudget();
+};
+document.getElementById("c-budget-add-btn").onclick = () => {
+  ["exp-desc","exp-est","exp-act","exp-date"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("exp-cat").value = "venue"; document.getElementById("exp-paid").checked = false;
+  document.getElementById("budget-add-modal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("exp-desc").focus(), 60);
+};
+document.getElementById("budget-add-close").onclick = () => document.getElementById("budget-add-modal").classList.add("hidden");
+document.getElementById("budget-add-modal").addEventListener("click", e => { if (e.target === document.getElementById("budget-add-modal")) e.target.classList.add("hidden"); });
+document.getElementById("budget-add-save").onclick = () => {
+  const desc = document.getElementById("exp-desc").value.trim(); if (!desc) { document.getElementById("exp-desc").focus(); return; }
+  const bd = budgetData();
+  bd.expenses.push({ id: crypto.randomUUID(), description: desc, category: document.getElementById("exp-cat").value, estimated: parseFloat(document.getElementById("exp-est").value)||0, actual: parseFloat(document.getElementById("exp-act").value)||0, dueDate: document.getElementById("exp-date").value, paid: document.getElementById("exp-paid").checked });
+  saveBudgetData(bd); document.getElementById("budget-add-modal").classList.add("hidden"); renderBudget();
+};
+
+// ═══ CHECKLIST ═════════════════════════════════════════════════════════════════
+const TL_ORDER = ["12+ Months","9–12 Months","6–9 Months","3–6 Months","1–3 Months","1 Week Out"];
+const DEFAULT_TASKS = [
+  {id:"ct1",  title:"Set your wedding date",                  timeline:"12+ Months"},
+  {id:"ct2",  title:"Create a preliminary guest list",        timeline:"12+ Months"},
+  {id:"ct3",  title:"Book ceremony & reception venue",        timeline:"12+ Months"},
+  {id:"ct4",  title:"Set your total wedding budget",          timeline:"12+ Months"},
+  {id:"ct5",  title:"Hire wedding photographer",              timeline:"9–12 Months"},
+  {id:"ct6",  title:"Book caterer or confirm venue catering", timeline:"9–12 Months"},
+  {id:"ct7",  title:"Hire DJ or book a band",                 timeline:"9–12 Months"},
+  {id:"ct8",  title:"Book florist",                           timeline:"6–9 Months"},
+  {id:"ct9",  title:"Send save-the-dates",                    timeline:"6–9 Months"},
+  {id:"ct10", title:"Purchase wedding attire",                timeline:"6–9 Months"},
+  {id:"ct11", title:"Book hair & makeup artists",             timeline:"6–9 Months"},
+  {id:"ct12", title:"Apply for marriage license",             timeline:"3–6 Months"},
+  {id:"ct13", title:"Send formal invitations",                timeline:"3–6 Months"},
+  {id:"ct14", title:"Plan rehearsal dinner",                  timeline:"3–6 Months"},
+  {id:"ct15", title:"Choose wedding cake / bakery",           timeline:"3–6 Months"},
+  {id:"ct16", title:"Final dress / suit fitting",             timeline:"1–3 Months"},
+  {id:"ct17", title:"Create seating chart",                   timeline:"1–3 Months"},
+  {id:"ct18", title:"Write personal vows",                    timeline:"1–3 Months"},
+  {id:"ct19", title:"Confirm all vendor details",             timeline:"1 Week Out"},
+  {id:"ct20", title:"Prepare vendor tips & payments",         timeline:"1 Week Out"},
+  {id:"ct21", title:"Pack for honeymoon",                     timeline:"1 Week Out"},
+].map(t => ({ ...t, done: false, dueDate: "", notes: "" }));
+
+function getChecklistTasks() { try { return JSON.parse(localStorage.getItem("wedboard:checklist") || "null"); } catch { return null; } }
+function saveChecklistTasks(t) { localStorage.setItem("wedboard:checklist", JSON.stringify(t)); }
+function checklistTasks() { const t = getChecklistTasks(); if (!t) { saveChecklistTasks(DEFAULT_TASKS); return DEFAULT_TASKS; } return t; }
+
+function renderChecklist() {
+  const tasks = checklistTasks();
+  const done = tasks.filter(t => t.done).length;
+  document.getElementById("c-checklist-stat").textContent = `${done} of ${tasks.length} tasks completed`;
+  const body = document.getElementById("c-checklist-body"); body.innerHTML = "";
+  const today = new Date().toISOString().slice(0, 10);
+  TL_ORDER.forEach(tl => {
+    const group = tasks.filter(t => t.timeline === tl); if (!group.length) return;
+    const dCnt = group.filter(t => t.done).length;
+    const sec = document.createElement("div"); sec.className = "checklist-group";
+    sec.innerHTML = `<div class="checklist-group-header"><span class="checklist-group-title">&#128205; ${esc(tl)}</span><span class="checklist-group-progress">${dCnt}/${group.length}</span></div><div class="checklist-items"></div>`;
+    const itemsEl = sec.querySelector(".checklist-items");
+    group.forEach(task => {
+      const overdue = task.dueDate && task.dueDate < today && !task.done;
+      const item = document.createElement("div"); item.className = "checklist-item" + (task.done ? " done" : "");
+      item.innerHTML = `<div class="checklist-item-check${task.done?" checked":""}"></div><div class="checklist-item-body"><div class="checklist-item-title">${esc(task.title)}</div>${task.dueDate||task.notes?`<div class="checklist-item-meta${overdue?" checklist-item-overdue":""}">${task.dueDate?(overdue?"⚠ Overdue: ":"Due: ")+task.dueDate:""}${task.notes?" · "+esc(task.notes):""}</div>`:""}</div><button class="checklist-item-del" title="Remove">&times;</button>`;
+      item.querySelector(".checklist-item-check").onclick = () => { const all = checklistTasks(); const t = all.find(x => x.id === task.id); if (t) t.done = !t.done; saveChecklistTasks(all); renderChecklist(); };
+      item.querySelector(".checklist-item-del").onclick = () => { saveChecklistTasks(checklistTasks().filter(x => x.id !== task.id)); renderChecklist(); };
+      itemsEl.appendChild(item);
+    });
+    body.appendChild(sec);
+  });
+}
+document.getElementById("c-checklist-add-btn").onclick = () => {
+  ["task-title","task-due","task-notes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("task-timeline").value = "3–6 Months";
+  document.getElementById("checklist-add-modal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("task-title").focus(), 60);
+};
+document.getElementById("checklist-add-close").onclick = () => document.getElementById("checklist-add-modal").classList.add("hidden");
+document.getElementById("checklist-add-modal").addEventListener("click", e => { if (e.target === document.getElementById("checklist-add-modal")) e.target.classList.add("hidden"); });
+document.getElementById("checklist-add-save").onclick = () => {
+  const title = document.getElementById("task-title").value.trim(); if (!title) { document.getElementById("task-title").focus(); return; }
+  const all = checklistTasks();
+  all.push({ id: crypto.randomUUID(), title, done: false, timeline: document.getElementById("task-timeline").value, dueDate: document.getElementById("task-due").value, notes: document.getElementById("task-notes").value.trim() });
+  saveChecklistTasks(all); document.getElementById("checklist-add-modal").classList.add("hidden"); renderChecklist();
+};
 
 // ═══ CARD GENERATOR ═══════════════════════════════════════════════════════════
 function initCard() {
