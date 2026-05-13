@@ -698,7 +698,8 @@ document.querySelectorAll(".c-tab-btn").forEach(btn => {
 });
 
 // ═══ DISCOVERY ════════════════════════════════════════════════════════════════
-const DISCOVERY_VENDORS = [
+// Static fallback vendors — shown when the backend/API is unavailable
+const DISCOVERY_VENDORS_STATIC = [
   // ── NEW YORK ──────────────────────────────────────────────────────────────
   // Photographers
   { id:"ny-ph1", name:"Christian Oth Studio",        cat:"photographer", city:"New York",      rating:4.9, reviews:312, price:"$$$$", desc:"Refined editorial portraits at New York's most iconic venues.",             av:"C", color:"peach" },
@@ -964,25 +965,132 @@ const DISCOVERY_VENDORS = [
   { id:"sf-bk5", name:"Noe Valley Bakery",            cat:"bakery",       city:"San Francisco", rating:4.7, reviews:156, price:"$$",   desc:"Beloved SF neighborhood bakery celebrated for fresh, seasonal wedding cakes.",  av:"N", color:"rose" },
 ];
 
-let discoverFilter = "all";
-let discoverCity = localStorage.getItem("wedboard:discoverCity") || "";
+// ── Discover state ────────────────────────────────────────────────────────────
+let discoverFilter   = "all";
+let discoverLocation = localStorage.getItem("wedboard:discoverLocation") || "";
+let discoverAPIReady = false; // true once we confirm the Flask backend is up
+// In-memory result cache: "location|category" → vendor[]
+const discoverCache  = {};
 
+// Category → avatar colour (mirrors backend CATEGORY_COLORS)
+const DISCOVER_CAT_COLORS = {
+  photographer: "peach", florist: "mint",   caterer:  "lavender",
+  "dj-music":   "sky",   planner: "blush",  venue:    "gold",
+  bakery:       "rose",
+};
+
+// Probe the Flask backend once on load; sets discoverAPIReady
+async function _probeDiscoverAPI() {
+  try {
+    const r = await fetch("/api/status", { signal: AbortSignal.timeout(1800) });
+    if (r.ok) discoverAPIReady = true;
+  } catch { /* backend not running — stay on static data */ }
+}
+
+// ── Main entry point called by tab switch ─────────────────────────────────────
 function renderDiscovery() {
-  // Sync location select
-  const locSel = document.getElementById("c-location-select");
-  if (locSel && locSel.value !== discoverCity) locSel.value = discoverCity;
+  // Sync text input
+  const inp = document.getElementById("c-location-input");
+  if (inp && inp.value !== discoverLocation) inp.value = discoverLocation;
 
-  // Filter pills
+  // Category filter pills
   document.querySelectorAll("#c-discover-filters .filter-pill").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.cat === discoverFilter);
     btn.onclick = () => { discoverFilter = btn.dataset.cat; renderDiscovery(); };
   });
 
-  // Apply both filters
-  let vendors = DISCOVERY_VENDORS;
-  if (discoverCity) vendors = vendors.filter(v => v.city === discoverCity);
-  if (discoverFilter !== "all") vendors = vendors.filter(v => v.cat === discoverFilter);
+  // Route to live or static rendering
+  if (discoverLocation && discoverAPIReady) {
+    _renderDiscoveryLive();
+  } else {
+    _renderDiscoveryStatic();
+  }
+}
 
+// ── Static fallback: filter DISCOVERY_VENDORS_STATIC ─────────────────────────
+function _renderDiscoveryStatic() {
+  const STATIC_CITY_MAP = {
+    "new york": "New York", "los angeles": "Los Angeles",
+    chicago: "Chicago",     miami: "Miami",
+    nashville: "Nashville", "san francisco": "San Francisco",
+  };
+  let vendors = DISCOVERY_VENDORS_STATIC;
+  if (discoverLocation) {
+    const loc  = discoverLocation.toLowerCase();
+    const city = Object.keys(STATIC_CITY_MAP).find(k => loc.includes(k));
+    vendors    = city ? vendors.filter(v => v.city === STATIC_CITY_MAP[city]) : [];
+  }
+  if (discoverFilter !== "all") vendors = vendors.filter(v => v.cat === discoverFilter);
+  _renderVendorCards(vendors);
+}
+
+// ── Live path: fetch from /api/discover-vendors ───────────────────────────────
+async function _renderDiscoveryLive() {
+  const cacheKey = `${discoverLocation}|${discoverFilter}`;
+  if (discoverCache[cacheKey]) { _renderVendorCards(discoverCache[cacheKey]); return; }
+
+  const grid = document.getElementById("c-vendor-discover-grid");
+  grid.innerHTML = `
+    <div style="grid-column:1/-1;text-align:center;padding:44px 0">
+      <div class="discover-spinner"></div>
+      <p class="muted sm" style="margin-top:14px">Finding vendors in <strong>${esc(discoverLocation)}</strong>…</p>
+    </div>`;
+  _setDiscoverStatus("");
+
+  try {
+    const qs  = new URLSearchParams({ location: discoverLocation, category: discoverFilter });
+    const res = await fetch(`/api/discover-vendors?${qs}`);
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    if (data.error && !data.vendors?.length) {
+      // API key missing — tell the user and fall back
+      _setDiscoverStatus("⚙ Google Places API key not configured — showing curated vendors.", "error");
+      _renderDiscoveryStatic();
+      return;
+    }
+
+    // Normalise API shape → card shape expected by _renderVendorCards
+    const vendors = (data.vendors || []).map(v => ({
+      id:      v.vendor_id,
+      name:    v.name,
+      cat:     v.category,
+      city:    v.city,
+      rating:  v.rating,
+      reviews: v.reviews,
+      price:   v.price,
+      desc:    v.description,
+      av:      (v.name || "V")[0].toUpperCase(),
+      color:   DISCOVER_CAT_COLORS[v.category] || "peach",
+      website: v.website,
+      phone:   v.phone,
+    }));
+
+    discoverCache[cacheKey] = vendors;
+    _setDiscoverStatus(
+      vendors.length
+        ? `✦ ${vendors.length} vendors found in ${discoverLocation}`
+        : ""
+    );
+    _renderVendorCards(vendors);
+
+  } catch (err) {
+    _setDiscoverStatus("⚠ Live search unavailable — showing curated vendors.", "error");
+    _renderDiscoveryStatic();
+  }
+}
+
+// ── Status bar helper ─────────────────────────────────────────────────────────
+function _setDiscoverStatus(msg, type = "") {
+  const bar = document.getElementById("c-discover-status");
+  if (!bar) return;
+  bar.textContent = msg;
+  bar.className   = "discover-status-bar" + (type ? ` ${type}` : "") + (msg ? "" : " hidden");
+}
+
+// ── Shared card renderer ──────────────────────────────────────────────────────
+function _renderVendorCards(vendors) {
   const grid = document.getElementById("c-vendor-discover-grid");
   grid.innerHTML = "";
 
@@ -992,27 +1100,58 @@ function renderDiscovery() {
   }
 
   vendors.forEach(v => {
-    const card = document.createElement("div");
+    const card  = document.createElement("div");
     card.className = "vendor-discover-card";
-    const stars = "★".repeat(Math.round(v.rating)) + "☆".repeat(5 - Math.round(v.rating));
+    const stars  = "★".repeat(Math.round(v.rating)) + "☆".repeat(5 - Math.round(v.rating));
     const inList = !!document.querySelector(`.c-vendor-btn[data-vendor="${v.name}"]`);
-    card.innerHTML = `<div class="vdc-header"><div class="m-avatar ${v.color}">${v.av}</div><div class="vdc-info"><strong>${esc(v.name)}</strong><span class="muted sm">${fmtCat(v.cat)} &middot; ${esc(v.city)}</span></div><span class="vdc-price">${v.price}</span></div><p class="vdc-desc">${esc(v.desc)}</p><div class="vdc-footer"><span class="vdc-rating"><span class="star-display">${stars}</span> ${v.rating} <span class="muted sm">(${v.reviews})</span></span>${inList ? '<span class="pill" style="font-size:.72rem">Added</span>' : `<button class="btn btn-primary btn-tiny" data-id="${v.id}">+ Add</button>`}</div>`;
+    const ratingDisplay = v.rating > 0
+      ? `${v.rating} <span class="muted sm">${v.reviews > 0 ? `(${v.reviews})` : ""}</span>`
+      : `<span class="muted sm">No rating</span>`;
+    card.innerHTML = `
+      <div class="vdc-header">
+        <div class="m-avatar ${v.color}">${v.av}</div>
+        <div class="vdc-info">
+          <strong>${esc(v.name)}</strong>
+          <span class="muted sm">${fmtCat(v.cat)} &middot; ${esc(v.city)}</span>
+        </div>
+        <span class="vdc-price">${v.price}</span>
+      </div>
+      <p class="vdc-desc">${esc(v.desc)}</p>
+      <div class="vdc-footer">
+        <span class="vdc-rating">
+          <span class="star-display">${stars}</span> ${ratingDisplay}
+        </span>
+        ${inList
+          ? `<span class="pill" style="font-size:.72rem">Added</span>`
+          : `<button class="btn btn-primary btn-tiny" data-id="${v.id}">+ Add</button>`
+        }
+      </div>`;
     if (!inList) card.querySelector("button").onclick = () => addDiscoveredVendor(v);
     grid.appendChild(card);
   });
 }
 
-// Location selector
+// ── Location search input wiring ──────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-  const locSel = document.getElementById("c-location-select");
-  if (locSel) {
-    locSel.value = discoverCity;
-    locSel.addEventListener("change", () => {
-      discoverCity = locSel.value;
-      localStorage.setItem("wedboard:discoverCity", discoverCity);
-      renderDiscovery();
-    });
+  const inp    = document.getElementById("c-location-input");
+  const searchBtn = document.getElementById("c-location-search");
+
+  // Restore last location
+  if (inp) inp.value = discoverLocation;
+
+  function triggerSearch() {
+    const val = (inp?.value || "").trim();
+    if (!val) return;
+    discoverLocation = val;
+    localStorage.setItem("wedboard:discoverLocation", val);
+    renderDiscovery();
   }
+
+  if (inp)      inp.addEventListener("keydown", e => { if (e.key === "Enter") triggerSearch(); });
+  if (searchBtn) searchBtn.addEventListener("click", triggerSearch);
+
+  // Probe backend availability asynchronously
+  _probeDiscoverAPI();
 });
 
 function addDiscoveredVendor(v) {

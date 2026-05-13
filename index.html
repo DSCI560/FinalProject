@@ -222,19 +222,20 @@
               <span class="muted sm">Find the perfect vendors for your wedding</span>
             </div>
             <div class="m-topbar-actions">
-              <div class="location-select-wrap">
+              <div class="location-input-wrap">
                 <span class="loc-icon">&#128205;</span>
-                <select id="c-location-select" class="location-select">
-                  <option value="">All Cities</option>
-                  <option value="New York">New York, NY</option>
-                  <option value="Los Angeles">Los Angeles, CA</option>
-                  <option value="Chicago">Chicago, IL</option>
-                  <option value="Miami">Miami, FL</option>
-                  <option value="Nashville">Nashville, TN</option>
-                  <option value="San Francisco">San Francisco, CA</option>
-                </select>
+                <input
+                  id="c-location-input"
+                  type="text"
+                  class="location-input"
+                  placeholder="e.g. Los Angeles, CA"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+                <button id="c-location-search" class="btn btn-primary btn-tiny">Search</button>
               </div>
             </div>
+            <div id="c-discover-status" class="discover-status-bar hidden"></div>
           </header>
           <div class="discover-body">
             <div class="discover-filters" id="c-discover-filters">

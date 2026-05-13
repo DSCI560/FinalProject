@@ -759,27 +759,41 @@ html{scrollbar-width:thin;scrollbar-color:rgba(193,167,117,.2) transparent}
 .vdc-footer{display:flex;align-items:center;justify-content:space-between}
 .vdc-rating{font-size:.76rem;display:flex;align-items:center;gap:4px;color:var(--muted)}
 
-/* Location picker in Discover header */
-.location-select-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0}
-.location-select-wrap .loc-icon{font-size:.85rem;color:var(--accent)}
-.location-select{
+/* Location search input in Discover header */
+.location-input-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.location-input-wrap .loc-icon{font-size:.85rem;color:var(--accent)}
+.location-input{
   border:1.5px solid var(--glass-border);
   border-radius:999px;
-  padding:5px 12px 5px 10px;
+  padding:5px 14px;
   font:inherit;font-size:.8rem;font-weight:500;
   background:var(--glass-strong);
   color:var(--ink);
-  cursor:pointer;
-  transition:border .14s,box-shadow .14s;
-  appearance:none;
-  -webkit-appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239B917E'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;
-  background-position:right 10px center;
-  padding-right:26px;
+  width:180px;
+  transition:border .14s,box-shadow .14s,width .2s ease;
 }
-.location-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.location-select:hover{border-color:var(--accent);background-color:var(--accent-soft)}
+.location-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);width:220px}
+.location-input::placeholder{color:var(--muted);font-weight:400}
+
+/* Discover status / error bar below header */
+.discover-status-bar{
+  font-size:.78rem;color:var(--muted);
+  padding:5px 16px;
+  background:var(--accent-soft);
+  border-bottom:1px solid var(--glass-border);
+}
+.discover-status-bar.error{background:rgba(196,117,117,.10);color:#b05454}
+.discover-status-bar.hidden{display:none!important}
+
+/* Discover loading spinner */
+.discover-spinner{
+  width:28px;height:28px;border-radius:50%;
+  border:2.5px solid var(--glass-border);
+  border-top-color:var(--accent);
+  animation:discover-spin .65s linear infinite;
+  margin:0 auto;
+}
+@keyframes discover-spin{to{transform:rotate(360deg)}}
 
 /* ═══ SEATING CHART ═══════════════════════════════════════════════════ */
 .seating-body{flex:1;overflow:hidden;display:grid;grid-template-columns:230px 1fr}
