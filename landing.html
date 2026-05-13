@@ -16,7 +16,7 @@
       --bg-3:        #EDE8DE;
       --ink:         #2A2A2A;
       --ink-2:       #3C3228;
-      --muted:       #9B917E;
+      --muted:       #5E5248;
       --gold:        #C1A775;
       --gold-2:      #9D8558;
       --gold-dark:   #7A6540;
@@ -164,76 +164,115 @@
       display: flex; align-items: center; justify-content: center;
       position: relative; overflow: hidden;
       padding: 120px 0 80px;
-      background:
-        radial-gradient(ellipse at 10% 20%, rgba(193,167,117,.08), transparent 55%),
-        radial-gradient(ellipse at 90% 80%, rgba(230,193,193,.1), transparent 55%),
-        radial-gradient(ellipse at 80% 10%, rgba(193,167,117,.05), transparent 45%),
-        linear-gradient(160deg, #FAF9F6, #F8F4EE 50%, #FAF3F0);
     }
-    /* Decorative watermark */
-    .hero::before {
-      content: '✦';
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-      font-size: 60vw; line-height: 1; color: rgba(193,167,117,.03);
-      pointer-events: none; user-select: none; letter-spacing: -5vw;
+    .hero-bg {
+      position: absolute; inset: 0; z-index: 0;
+      background-image: url('https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1920&q=80');
+      background-size: cover; background-position: center 35%;
     }
-    .hero-inner {
-      text-align: center;
-      max-width: 800px;
-      position: relative;
+    .hero-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(160deg,
+        rgba(42,30,18,.62) 0%,
+        rgba(42,30,18,.48) 40%,
+        rgba(60,40,28,.52) 100%);
     }
+    .hero > .container { position: relative; z-index: 1; }
+    .hero-inner { text-align: center; max-width: 800px; position: relative; }
     .hero-ornament {
       display: flex; align-items: center; justify-content: center;
-      gap: 10px; margin-bottom: 24px; color: var(--gold);
+      gap: 10px; margin-bottom: 24px; color: rgba(255,255,255,.75);
       font-size: .78rem; letter-spacing: .22em; text-transform: uppercase;
     }
     .hero-ornament::before, .hero-ornament::after {
       content: ''; flex: 1; max-width: 60px; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--gold));
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.5));
     }
-    .hero-ornament::after { background: linear-gradient(90deg, var(--gold), transparent); }
+    .hero-ornament::after { background: linear-gradient(90deg, rgba(255,255,255,.5), transparent); }
     .hero h1 {
       font-family: 'Playfair Display', Georgia, serif;
       font-size: clamp(2.6rem, 6vw, 4.4rem);
-      font-weight: 500; line-height: 1.18; color: var(--ink-2);
+      font-weight: 500; line-height: 1.18; color: #fff;
       margin-bottom: 22px; letter-spacing: .01em;
     }
-    .hero h1 em { font-style: italic; color: var(--gold-2); }
+    .hero h1 em { font-style: italic; color: #E8C97A; }
+    .hero-ai-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
+      backdrop-filter: blur(8px);
+      padding: 5px 14px; border-radius: 999px;
+      font-size: .78rem; font-weight: 600; color: rgba(255,255,255,.9);
+      letter-spacing: .1em; text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .hero-ai-badge svg { width: 14px; height: 14px; color: #E8C97A; }
     .hero-sub {
       font-size: clamp(.95rem, 2vw, 1.1rem);
-      color: var(--muted); max-width: 560px; margin: 0 auto 38px;
+      color: rgba(255,255,255,.82); max-width: 560px; margin: 0 auto 38px;
       line-height: 1.75;
     }
     .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
     .hero-scroll {
       position: absolute; bottom: -60px; left: 50%; transform: translateX(-50%);
       display: flex; flex-direction: column; align-items: center; gap: 6px;
-      color: var(--muted); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
+      color: rgba(255,255,255,.5); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
       animation: float 2.4s ease-in-out infinite;
       cursor: pointer;
     }
     .hero-scroll svg { width: 18px; height: 18px; }
     @keyframes float { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(6px)} }
 
-    /* App preview mockup */
+    /* App preview mockup — inside laptop frame */
     .hero-mockup {
       margin-top: 70px;
       position: relative;
-      max-width: 840px;
+      max-width: 860px;
       margin-left: auto; margin-right: auto;
     }
+    .laptop-frame {
+      position: relative;
+      padding: 18px 22px 0;
+      background: linear-gradient(180deg, #2A2520, #1A1714);
+      border-radius: 18px 18px 0 0;
+      box-shadow:
+        0 0 0 1.5px rgba(255,255,255,.08),
+        0 24px 64px rgba(0,0,0,.45),
+        0 8px 24px rgba(0,0,0,.3);
+    }
+    .laptop-lid-top {
+      display: flex; align-items: center; justify-content: center;
+      height: 18px; margin-bottom: 4px;
+    }
+    .laptop-camera {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #333; border: 1px solid #444;
+    }
+    .laptop-screen {
+      border-radius: 6px 6px 0 0; overflow: hidden;
+      border: 2px solid rgba(255,255,255,.06);
+    }
+    .laptop-base {
+      background: linear-gradient(180deg, #2A2520, #222018);
+      height: 20px; border-radius: 0 0 24px 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.3);
+      position: relative;
+    }
+    .laptop-base::after {
+      content: '';
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      width: 80px; height: 4px; border-radius: 2px;
+      background: rgba(255,255,255,.06);
+    }
     .mockup-frame {
-      background: rgba(250,249,246,.7);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--gold-mid);
-      border-radius: 20px;
-      box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255,255,255,.5);
+      background: rgba(250,249,246,.98);
+      border-bottom: none;
       overflow: hidden;
     }
     .mockup-bar {
       display: flex; align-items: center; gap: 7px;
       padding: 12px 16px; border-bottom: 1px solid var(--line);
-      background: rgba(244,241,235,.8);
+      background: rgba(244,241,235,.95);
     }
     .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
     .mockup-dot:nth-child(1) { background: #F4A0A0; }
@@ -300,47 +339,93 @@
     }
     .strip-item svg { width: 15px; height: 15px; color: var(--gold); }
 
-    /* ── Features section ───────────────────────────────── */
+    /* ── Vendor marquee ─────────────────────────────────── */
+    .vendor-marquee {
+      background: var(--bg);
+      padding: 28px 0;
+      border-bottom: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .vendor-marquee-label {
+      text-align: center;
+      font-size: .68rem; font-weight: 600; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--gold-2); margin-bottom: 20px;
+    }
+    .marquee-outer { overflow: hidden; }
+    .marquee-track {
+      display: flex; gap: 0;
+      width: max-content;
+      animation: marquee-scroll 28s linear infinite;
+    }
+    .marquee-track:hover { animation-play-state: paused; }
+    @keyframes marquee-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    .vendor-badge {
+      display: flex; align-items: center; gap: 9px;
+      padding: 10px 28px;
+      border-right: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    .vendor-badge-icon {
+      width: 32px; height: 32px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif; font-size: .88rem;
+      font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .vendor-badge-name { font-size: .8rem; font-weight: 600; color: var(--ink-2); }
+    .vendor-badge-cat  { font-size: .68rem; color: var(--muted); }
+
+    /* ── Features section — zig-zag ─────────────────────── */
     .features-section { padding: 110px 0; }
-    .features-header { text-align: center; margin-bottom: 64px; }
+    .features-header { text-align: center; margin-bottom: 72px; }
     .features-header .section-sub { margin: 0 auto; }
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 24px;
+
+    .feature-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 64px; align-items: center;
+      margin-bottom: 80px;
     }
-    .feature-card {
-      background: rgba(250,249,246,.9);
+    .feature-row:last-child { margin-bottom: 0; }
+    .feature-row.reverse .feature-row-visual { order: 2; }
+    .feature-row.reverse .feature-row-text   { order: 1; }
+
+    .feature-row-visual {
+      border-radius: 24px; overflow: hidden;
+      background: linear-gradient(135deg, var(--bg-2), var(--bg-3));
       border: 1px solid var(--line);
-      border-radius: var(--r);
-      padding: 32px 28px;
-      position: relative; overflow: hidden;
-      transition: box-shadow .2s, transform .2s, border-color .2s;
-      box-shadow: var(--shadow);
+      box-shadow: var(--shadow-lg);
+      aspect-ratio: 4/3;
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
     }
-    .feature-card::before {
+    .feature-row-visual::before {
       content: '';
       position: absolute; inset: 0;
-      background: radial-gradient(ellipse at 80% 0%, rgba(193,167,117,.06), transparent 65%);
-      pointer-events: none;
+      background: radial-gradient(ellipse at 30% 30%, rgba(193,167,117,.10), transparent 65%);
     }
-    .feature-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--gold-mid); }
-    .feature-icon-wrap {
-      width: 52px; height: 52px; border-radius: 14px;
+    .feature-visual-icon {
+      width: 88px; height: 88px; border-radius: 22px;
       background: linear-gradient(135deg, var(--gold), var(--gold-2));
       display: flex; align-items: center; justify-content: center;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 16px rgba(193,167,117,.3), inset 0 1px 0 rgba(255,255,255,.25);
+      box-shadow: 0 16px 48px rgba(193,167,117,.4), inset 0 1px 0 rgba(255,255,255,.3);
+      position: relative; z-index: 1;
     }
-    .feature-icon-wrap svg { width: 22px; height: 22px; color: #fff; }
-    .feature-card h3 {
+    .feature-visual-icon svg { width: 44px; height: 44px; color: #fff; }
+
+    .feature-row-text {}
+    .feature-row-text .eyebrow { margin-bottom: 12px; }
+    .feature-row-text h3 {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 1.12rem; font-weight: 500; color: var(--ink-2);
-      margin-bottom: 10px;
+      font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 500;
+      color: var(--ink-2); margin-bottom: 16px; line-height: 1.28;
     }
-    .feature-card p { font-size: .87rem; color: var(--muted); line-height: 1.65; }
+    .feature-row-text p {
+      font-size: .95rem; color: var(--muted); line-height: 1.75; margin-bottom: 20px;
+    }
     .feature-tag {
-      display: inline-block; margin-top: 16px;
+      display: inline-block;
       font-size: .68rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
       color: var(--gold-2); border-bottom: 1px solid var(--gold-mid); padding-bottom: 1px;
     }
@@ -403,22 +488,35 @@
     }
     .testimonial-stars { color: #C8A04A; font-size: .9rem; letter-spacing: 2px; margin-bottom: 16px; }
     .testimonial-text {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 1rem; color: var(--ink-2);
+      font-family: 'Inter', sans-serif;
+      font-size: .95rem; color: var(--ink-2);
       line-height: 1.72; margin-bottom: 24px;
-      font-style: italic; position: relative; z-index: 1;
+      font-style: normal; position: relative; z-index: 1;
+    }
+    .testimonial-quote {
+      font-family: 'Playfair Display', serif;
+      font-style: italic; font-size: 1.05rem;
+      color: var(--gold-2); display: block;
+      margin-top: 8px;
     }
     .testimonial-author { display: flex; align-items: center; gap: 12px; }
-    .testimonial-avatar {
-      width: 42px; height: 42px; border-radius: 12px;
+    .testimonial-photo {
+      width: 46px; height: 46px; border-radius: 12px;
+      object-fit: cover; object-position: center;
+      box-shadow: 0 2px 8px rgba(60,50,40,.15);
+      flex-shrink: 0;
+    }
+    .testimonial-photo-placeholder {
+      width: 46px; height: 46px; border-radius: 12px;
       display: flex; align-items: center; justify-content: center;
       font-family: 'Playfair Display', serif;
       font-weight: 600; font-size: .9rem; color: #fff;
       box-shadow: 0 2px 8px rgba(60,50,40,.15);
+      flex-shrink: 0;
     }
-    .testimonial-avatar.a1 { background: linear-gradient(145deg,#D4909E,#B05474); }
-    .testimonial-avatar.a2 { background: linear-gradient(145deg,#8AAFC8,#2868A8); }
-    .testimonial-avatar.a3 { background: linear-gradient(145deg,#6BBE90,#368C5C); }
+    .testimonial-photo-placeholder.a1 { background: linear-gradient(145deg,#D4909E,#B05474); }
+    .testimonial-photo-placeholder.a2 { background: linear-gradient(145deg,#8AAFC8,#2868A8); }
+    .testimonial-photo-placeholder.a3 { background: linear-gradient(145deg,#6BBE90,#368C5C); }
     .testimonial-name { font-weight: 600; font-size: .88rem; color: var(--ink-2); }
     .testimonial-label { font-size: .75rem; color: var(--muted); }
 
@@ -541,6 +639,101 @@
     .modal-footer-text { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 12px; }
     .modal-footer-text a { color: var(--gold-2); font-weight: 600; cursor: pointer; }
 
+    /* ── Demo Modal ─────────────────────────────────────── */
+    .demo-overlay {
+      position: fixed; inset: 0; z-index: 1010;
+      background: rgba(20,14,10,.72);
+      backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s;
+    }
+    .demo-overlay.open { opacity: 1; pointer-events: all; }
+    .demo-card {
+      background: var(--bg);
+      border: 1px solid rgba(193,167,117,.3);
+      border-radius: 28px;
+      padding: 0;
+      width: 100%; max-width: 680px;
+      box-shadow: 0 32px 80px rgba(20,14,10,.4);
+      transform: translateY(20px) scale(.97);
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+      position: relative; overflow: hidden;
+    }
+    .demo-overlay.open .demo-card { transform: translateY(0) scale(1); }
+    .demo-header {
+      padding: 24px 28px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .demo-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem; font-weight: 500; color: var(--ink-2);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .demo-title svg { width: 18px; height: 18px; color: var(--gold); }
+    .demo-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 1.4rem; color: var(--muted); transition: color .12s; line-height: 1;
+    }
+    .demo-close:hover { color: var(--ink); }
+    .demo-body { padding: 28px; }
+    .demo-chat { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+    .demo-msg {
+      display: flex; gap: 10px; align-items: flex-start;
+      opacity: 0; transform: translateY(10px);
+      transition: opacity .4s ease, transform .4s ease;
+    }
+    .demo-msg.shown { opacity: 1; transform: translateY(0); }
+    .demo-msg.user-msg { flex-direction: row-reverse; }
+    .demo-avatar {
+      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .72rem; font-weight: 700; color: #fff;
+    }
+    .demo-avatar.ai-av { background: linear-gradient(135deg, var(--gold), var(--gold-2)); }
+    .demo-avatar.user-av { background: linear-gradient(135deg, #D4909E, #B05474); }
+    .demo-bubble {
+      background: var(--bg-2); border: 1px solid var(--line);
+      border-radius: 12px 12px 12px 3px; padding: 10px 14px;
+      font-size: .88rem; color: var(--ink-2); line-height: 1.5;
+      max-width: 75%;
+    }
+    .demo-msg.user-msg .demo-bubble {
+      background: linear-gradient(135deg, var(--gold), var(--gold-2));
+      color: #fff; border-color: transparent;
+      border-radius: 12px 12px 3px 12px;
+    }
+    .demo-typing {
+      display: flex; align-items: center; gap: 4px;
+      padding: 12px 14px;
+      background: var(--bg-2); border: 1px solid var(--line);
+      border-radius: 12px 12px 12px 3px;
+      width: fit-content;
+    }
+    .demo-typing span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--gold); opacity: .4;
+      animation: typing-dot .9s infinite ease-in-out;
+    }
+    .demo-typing span:nth-child(2) { animation-delay: .15s; }
+    .demo-typing span:nth-child(3) { animation-delay: .3s; }
+    @keyframes typing-dot { 0%,60%,100%{opacity:.4;transform:scale(1)} 30%{opacity:1;transform:scale(1.35)} }
+    .demo-doc-preview {
+      background: var(--bg-2); border: 1px solid var(--gold-mid);
+      border-radius: 14px; padding: 16px 20px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .demo-doc-icon {
+      width: 44px; height: 44px; border-radius: 11px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-2));
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .demo-doc-icon svg { width: 20px; height: 20px; color: #fff; }
+    .demo-doc-name { font-weight: 600; font-size: .88rem; color: var(--ink-2); }
+    .demo-doc-meta { font-size: .75rem; color: var(--muted); }
+
     /* ── FAQ ────────────────────────────────────────────── */
     .faq-section { padding: 110px 0; background: var(--bg-2); }
     .faq-header { text-align: center; margin-bottom: 56px; }
@@ -581,12 +774,14 @@
       .footer-inner { grid-template-columns: 1fr 1fr; }
       .mockup-content { grid-template-columns: 1fr; }
       .mockup-sidebar { display: none; }
+      .feature-row { grid-template-columns: 1fr; gap: 32px; }
+      .feature-row.reverse .feature-row-visual { order: 0; }
+      .feature-row.reverse .feature-row-text   { order: 0; }
     }
     @media (max-width: 680px) {
       .nav-links { display: none; }
       .hamburger { display: flex; }
       .hero h1 { font-size: 2.2rem; }
-      .features-grid { grid-template-columns: 1fr; }
       .testimonials-grid { grid-template-columns: 1fr; }
       .footer-inner { grid-template-columns: 1fr; gap: 28px; }
       .footer-bottom { flex-direction: column; text-align: center; }
@@ -612,7 +807,10 @@
       </ul>
       <div class="nav-right">
         <button class="nav-login" id="open-login">Log In</button>
-        <a href="index.html" class="btn btn-primary" style="padding:8px 20px;font-size:.84rem">Start Planning</a>
+        <a href="index.html" class="btn btn-primary" style="padding:8px 20px;font-size:.84rem">
+          <i data-lucide="sparkles" style="width:13px;height:13px"></i>
+          Start Planning Free
+        </a>
       </div>
       <button class="hamburger" id="hamburger" aria-label="Menu">
         <span></span><span></span><span></span>
@@ -628,70 +826,83 @@
     <a href="#reviews" class="mobile-link">Reviews</a>
     <a href="#faq" class="mobile-link">FAQ</a>
     <button class="btn btn-primary" style="margin-top:8px" onclick="openLogin()">Log In</button>
-    <a href="index.html" class="btn btn-ghost" style="margin-top:4px">Start Planning</a>
+    <a href="index.html" class="btn btn-ghost" style="margin-top:4px">Start Planning Free</a>
   </div>
 
   <!-- ═══ HERO ═════════════════════════════════════════════════════════════ -->
   <section class="hero" id="hero">
+    <div class="hero-bg"></div>
     <div class="container">
       <div class="hero-inner reveal">
-        <div class="hero-ornament">AI-Powered Wedding Planning</div>
-        <h1>Your Love Story,<br><em>Orchestrated</em> with Intelligence.</h1>
+        <div class="hero-ai-badge">
+          <i data-lucide="sparkles"></i>
+          Powered by AI — Your Personal Wedding Coordinator
+        </div>
+        <h1>Your Love Story,<br><em>Orchestrated</em> with AI.</h1>
         <p class="hero-sub">One elegant workspace where couples and vendors collaborate seamlessly — from the first conversation to the last place card.</p>
         <div class="hero-cta">
-          <a href="index.html" class="btn btn-primary" style="font-size:.92rem;padding:14px 32px">
+          <a href="index.html" class="btn btn-primary" style="font-size:.92rem;padding:14px 32px;background:linear-gradient(135deg,#C8AE7D,#9D8558);">
             <i data-lucide="sparkles" style="width:16px;height:16px"></i>
             Start Planning Free
           </a>
-          <a href="#features" class="btn btn-ghost" style="font-size:.92rem;padding:14px 32px">
+          <button class="btn btn-ghost" style="font-size:.92rem;padding:14px 32px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff;" onclick="openDemo()">
+            <i data-lucide="play-circle" style="width:16px;height:16px"></i>
             See How It Works
-          </a>
+          </button>
         </div>
       </div>
 
-      <!-- App Preview Mockup -->
+      <!-- App Preview Mockup — inside laptop frame -->
       <div class="hero-mockup reveal reveal-delay-2">
-        <div class="mockup-frame">
-          <div class="mockup-bar">
-            <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
-            <div class="mockup-url">wedboard.app/dashboard</div>
+        <div class="laptop-frame">
+          <div class="laptop-lid-top">
+            <div class="laptop-camera"></div>
           </div>
-          <div class="mockup-content">
-            <div class="mockup-sidebar">
-              <div class="mockup-logo-sm">W</div>
-              <div class="mockup-label">Vendors</div>
-              <div class="mockup-vendor active">
-                <div class="mockup-av peach">G</div>
-                <div><div class="mockup-vname">Golden Hour Studio</div><div class="mockup-vcat">Photographer</div></div>
+          <div class="laptop-screen">
+            <div class="mockup-frame">
+              <div class="mockup-bar">
+                <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
+                <div class="mockup-url">wedboard.app/dashboard</div>
               </div>
-              <div class="mockup-vendor">
-                <div class="mockup-av mint">P</div>
-                <div><div class="mockup-vname">Petal &amp; Vine</div><div class="mockup-vcat">Florist</div></div>
-              </div>
-              <div class="mockup-vendor">
-                <div class="mockup-av sky">B</div>
-                <div><div class="mockup-vname">Blue Note Events</div><div class="mockup-vcat">DJ / Music</div></div>
-              </div>
-              <div class="mockup-vendor">
-                <div class="mockup-av lav">H</div>
-                <div><div class="mockup-vname">Hearth Table</div><div class="mockup-vcat">Caterer</div></div>
-              </div>
-            </div>
-            <div class="mockup-main">
-              <div class="mockup-tabs">
-                <div class="mockup-tab active">&#128172; Chat</div>
-                <div class="mockup-tab">&#128269; Discover</div>
-                <div class="mockup-tab">&#129681; Seating</div>
-                <div class="mockup-tab">&#128140; Cards</div>
-              </div>
-              <div class="mockup-bubbles">
-                <div class="mockup-bubble">Hi! Could you confirm the ceremony start time for the June 21st event?</div>
-                <div class="mockup-bubble ai">Of course! Ceremony begins at 4:30 PM. Guest arrival from 4:00 PM. I've updated the vendor schedule.</div>
-                <div class="mockup-bubble human">Perfect — @ai generate doc timeline</div>
+              <div class="mockup-content">
+                <div class="mockup-sidebar">
+                  <div class="mockup-logo-sm">W</div>
+                  <div class="mockup-label">Vendors</div>
+                  <div class="mockup-vendor active">
+                    <div class="mockup-av peach">G</div>
+                    <div><div class="mockup-vname">Golden Hour Studio</div><div class="mockup-vcat">Photographer</div></div>
+                  </div>
+                  <div class="mockup-vendor">
+                    <div class="mockup-av mint">P</div>
+                    <div><div class="mockup-vname">Petal &amp; Vine</div><div class="mockup-vcat">Florist</div></div>
+                  </div>
+                  <div class="mockup-vendor">
+                    <div class="mockup-av sky">B</div>
+                    <div><div class="mockup-vname">Blue Note Events</div><div class="mockup-vcat">DJ / Music</div></div>
+                  </div>
+                  <div class="mockup-vendor">
+                    <div class="mockup-av lav">H</div>
+                    <div><div class="mockup-vname">Hearth Table</div><div class="mockup-vcat">Caterer</div></div>
+                  </div>
+                </div>
+                <div class="mockup-main">
+                  <div class="mockup-tabs">
+                    <div class="mockup-tab active">&#128172; Chat</div>
+                    <div class="mockup-tab">&#128269; Discover</div>
+                    <div class="mockup-tab">&#129681; Seating</div>
+                    <div class="mockup-tab">&#128140; Cards</div>
+                  </div>
+                  <div class="mockup-bubbles">
+                    <div class="mockup-bubble">Hi! Could you confirm the ceremony start time for the June 21st event?</div>
+                    <div class="mockup-bubble ai">Of course! Ceremony begins at 4:30 PM. Guest arrival from 4:00 PM. I've updated the vendor schedule.</div>
+                    <div class="mockup-bubble human">Perfect — @ai generate doc timeline</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
+        <div class="laptop-base"></div>
       </div>
     </div>
   </section>
@@ -707,7 +918,82 @@
     </div>
   </div>
 
-  <!-- ═══ FEATURES ═════════════════════════════════════════════════════════ -->
+  <!-- ═══ VENDOR MARQUEE ═══════════════════════════════════════════════════ -->
+  <div class="vendor-marquee">
+    <div class="vendor-marquee-label">Trusted Vendor Network</div>
+    <div class="marquee-outer">
+      <div class="marquee-track" id="marquee-track">
+        <!-- Set 1 -->
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#EAA96C,#C07030)">G</div>
+          <div><div class="vendor-badge-name">Golden Hour Studio</div><div class="vendor-badge-cat">Photography</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#6BBE90,#368C5C)">P</div>
+          <div><div class="vendor-badge-name">Petal &amp; Vine</div><div class="vendor-badge-cat">Floristry</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#5A9ED4,#2868A8)">B</div>
+          <div><div class="vendor-badge-name">Blue Note Events</div><div class="vendor-badge-cat">DJ &amp; Music</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#A88ED8,#6A54B0)">H</div>
+          <div><div class="vendor-badge-name">Hearth Table</div><div class="vendor-badge-cat">Catering</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#D4909E,#B05474)">R</div>
+          <div><div class="vendor-badge-name">Rosewood Films</div><div class="vendor-badge-cat">Videography</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#C8A04A,#9A7230)">V</div>
+          <div><div class="vendor-badge-name">Vineyard Estate</div><div class="vendor-badge-cat">Venue</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#7ABCB0,#3A8C80)">S</div>
+          <div><div class="vendor-badge-name">Sweet Layers Co.</div><div class="vendor-badge-cat">Cake &amp; Desserts</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#E8907A,#B85040)">L</div>
+          <div><div class="vendor-badge-name">Luxe Beauty Bar</div><div class="vendor-badge-cat">Hair &amp; Makeup</div></div>
+        </div>
+        <!-- Set 2 (duplicate for seamless loop) -->
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#EAA96C,#C07030)">G</div>
+          <div><div class="vendor-badge-name">Golden Hour Studio</div><div class="vendor-badge-cat">Photography</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#6BBE90,#368C5C)">P</div>
+          <div><div class="vendor-badge-name">Petal &amp; Vine</div><div class="vendor-badge-cat">Floristry</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#5A9ED4,#2868A8)">B</div>
+          <div><div class="vendor-badge-name">Blue Note Events</div><div class="vendor-badge-cat">DJ &amp; Music</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#A88ED8,#6A54B0)">H</div>
+          <div><div class="vendor-badge-name">Hearth Table</div><div class="vendor-badge-cat">Catering</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#D4909E,#B05474)">R</div>
+          <div><div class="vendor-badge-name">Rosewood Films</div><div class="vendor-badge-cat">Videography</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#C8A04A,#9A7230)">V</div>
+          <div><div class="vendor-badge-name">Vineyard Estate</div><div class="vendor-badge-cat">Venue</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#7ABCB0,#3A8C80)">S</div>
+          <div><div class="vendor-badge-name">Sweet Layers Co.</div><div class="vendor-badge-cat">Cake &amp; Desserts</div></div>
+        </div>
+        <div class="vendor-badge">
+          <div class="vendor-badge-icon" style="background:linear-gradient(135deg,#E8907A,#B85040)">L</div>
+          <div><div class="vendor-badge-name">Luxe Beauty Bar</div><div class="vendor-badge-cat">Hair &amp; Makeup</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURES — zig-zag ═══════════════════════════════════════════════ -->
   <section class="features-section" id="features">
     <div class="container">
       <div class="features-header">
@@ -717,40 +1003,62 @@
         <p class="section-sub">Four powerful tools — beautifully unified into one workspace your whole team can use.</p>
       </div>
 
-      <div class="features-grid">
-        <div class="feature-card reveal">
-          <div class="feature-icon-wrap">
+      <!-- Row 1: visual left, text right -->
+      <div class="feature-row reveal">
+        <div class="feature-row-visual">
+          <div class="feature-visual-icon">
             <i data-lucide="bot"></i>
           </div>
+        </div>
+        <div class="feature-row-text">
+          <span class="eyebrow">AI-Powered</span>
           <h3>AI Vendor Chat</h3>
-          <p>Direct, intelligent conversations with your photographer, florist, caterer and more. The AI reads your uploaded documents and answers questions instantly.</p>
+          <p>Direct, intelligent conversations with your photographer, florist, caterer and more. The AI reads your uploaded documents and answers questions instantly — no more hunting through email threads.</p>
           <span class="feature-tag">Powered by GPT-4</span>
         </div>
+      </div>
 
-        <div class="feature-card reveal reveal-delay-1">
-          <div class="feature-icon-wrap">
+      <!-- Row 2: text left, visual right -->
+      <div class="feature-row reverse reveal">
+        <div class="feature-row-visual">
+          <div class="feature-visual-icon">
             <i data-lucide="compass"></i>
           </div>
+        </div>
+        <div class="feature-row-text">
+          <span class="eyebrow">Curated Network</span>
           <h3>Smart Discovery</h3>
-          <p>Browse curated vendors by category — photographers, florists, venues and more — and add them to your planning workspace with one click.</p>
+          <p>Browse curated vendors by category — photographers, florists, venues and more — and add them to your planning workspace with one click. Every vendor, beautifully organized.</p>
           <span class="feature-tag">Curated Network</span>
         </div>
+      </div>
 
-        <div class="feature-card reveal reveal-delay-2">
-          <div class="feature-icon-wrap">
+      <!-- Row 3: visual left, text right -->
+      <div class="feature-row reveal">
+        <div class="feature-row-visual">
+          <div class="feature-visual-icon">
             <i data-lucide="layout-grid"></i>
           </div>
+        </div>
+        <div class="feature-row-text">
+          <span class="eyebrow">Visual Planner</span>
           <h3>Seamless Seating</h3>
-          <p>Click any table to open it and type guest names directly into seats. Customize the number of tables and seats per table to match your venue layout.</p>
+          <p>Click any table to open it and type guest names directly into seats. Customize the number of tables and seats per table to match your venue layout exactly.</p>
           <span class="feature-tag">Visual Planner</span>
         </div>
+      </div>
 
-        <div class="feature-card reveal reveal-delay-3">
-          <div class="feature-icon-wrap">
+      <!-- Row 4: text left, visual right -->
+      <div class="feature-row reverse reveal">
+        <div class="feature-row-visual">
+          <div class="feature-visual-icon">
             <i data-lucide="scroll-text"></i>
           </div>
+        </div>
+        <div class="feature-row-text">
+          <span class="eyebrow">Print-Ready</span>
           <h3>Digital Card Studio</h3>
-          <p>Design and print place cards, thank-you notes, dinner menus, and invitations. Live preview updates as you type, and prints beautifully to PDF.</p>
+          <p>Design and print place cards, thank-you notes, dinner menus, and invitations. Live preview updates as you type, and prints beautifully to PDF — ready for your big day.</p>
           <span class="feature-tag">Print-Ready</span>
         </div>
       </div>
@@ -796,9 +1104,11 @@
       <div class="testimonials-grid">
         <div class="testimonial-card reveal">
           <div class="testimonial-stars">★★★★★</div>
-          <p class="testimonial-text">"WedBoard turned our chaotic planning phase into a calm, curated experience. Every vendor was in sync, and the AI felt like having a personal wedding coordinator on call 24/7."</p>
+          <p class="testimonial-text">WedBoard turned our chaotic planning phase into a calm, curated experience. Every vendor was in sync, and the AI felt like having a personal wedding coordinator on call 24/7.
+            <span class="testimonial-quote">"It genuinely felt like having a wedding planner in our pocket."</span>
+          </p>
           <div class="testimonial-author">
-            <div class="testimonial-avatar a1">S</div>
+            <div class="testimonial-photo-placeholder a1">S</div>
             <div>
               <div class="testimonial-name">Sarah &amp; James</div>
               <div class="testimonial-label">Married in Napa Valley · June 2025</div>
@@ -808,9 +1118,11 @@
 
         <div class="testimonial-card reveal reveal-delay-1">
           <div class="testimonial-stars">★★★★★</div>
-          <p class="testimonial-text">"The AI chat handled the heavy lifting so we could focus on the moments that matter. Our photographer, florist and caterer were all perfectly aligned without a single stressed email."</p>
+          <p class="testimonial-text">The AI chat handled the heavy lifting so we could focus on the moments that matter. Our photographer, florist and caterer were all perfectly aligned without a single stressed email.
+            <span class="testimonial-quote">"Zero stress. Every vendor perfectly in sync."</span>
+          </p>
           <div class="testimonial-author">
-            <div class="testimonial-avatar a2">M</div>
+            <div class="testimonial-photo-placeholder a2">M</div>
             <div>
               <div class="testimonial-name">The Millers</div>
               <div class="testimonial-label">Married in Sonoma · September 2025</div>
@@ -820,9 +1132,11 @@
 
         <div class="testimonial-card reveal reveal-delay-2">
           <div class="testimonial-stars">★★★★★</div>
-          <p class="testimonial-text">"The seating chart alone saved us three hours the night before the wedding. We just opened each table and typed names in. It was genuinely delightful to use."</p>
+          <p class="testimonial-text">The seating chart alone saved us three hours the night before the wedding. We just opened each table and typed names in. It was genuinely delightful to use.
+            <span class="testimonial-quote">"Saved us hours the night before. Absolutely delightful."</span>
+          </p>
           <div class="testimonial-author">
-            <div class="testimonial-avatar a3">A</div>
+            <div class="testimonial-photo-placeholder a3">A</div>
             <div>
               <div class="testimonial-name">Aisha &amp; Carlos</div>
               <div class="testimonial-label">Married in Santa Barbara · March 2025</div>
@@ -907,8 +1221,8 @@
       <p class="section-sub">Join couples who've discovered a calmer, more beautiful way to plan their perfect day.</p>
       <div style="margin-top:32px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
         <a href="index.html" class="btn btn-primary" style="font-size:.92rem;padding:14px 32px">
-          <i data-lucide="heart" style="width:15px;height:15px"></i>
-          Create Your Wedding
+          <i data-lucide="sparkles" style="width:15px;height:15px"></i>
+          Start Planning Free
         </a>
         <button class="btn btn-ghost" style="font-size:.92rem;padding:14px 32px" onclick="openLogin()">
           Log In to Dashboard
@@ -1010,6 +1324,31 @@
     </div>
   </div>
 
+  <!-- ═══ DEMO MODAL ════════════════════════════════════════════════════════ -->
+  <div class="demo-overlay" id="demo-overlay">
+    <div class="demo-card">
+      <div class="demo-header">
+        <div class="demo-title">
+          <i data-lucide="sparkles"></i>
+          See WedBoard AI in Action
+        </div>
+        <button class="demo-close" onclick="closeDemo()">&times;</button>
+      </div>
+      <div class="demo-body">
+        <div class="demo-chat" id="demo-chat">
+          <!-- Messages injected by JS -->
+        </div>
+        <div class="demo-doc-preview">
+          <div class="demo-doc-icon"><i data-lucide="file-text"></i></div>
+          <div>
+            <div class="demo-doc-name">vendor_schedule_june21.docx</div>
+            <div class="demo-doc-meta">Generated by AI · 2 pages · Ready to download</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ── Lucide Icons ─────────────────────────────────────
     lucide.createIcons();
@@ -1036,7 +1375,7 @@
     }, { threshold: 0.08 });
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-    // ── Modal ────────────────────────────────────────────
+    // ── Login Modal ──────────────────────────────────────
     function openLogin() {
       document.getElementById('modal-overlay').classList.add('open');
       setTimeout(() => document.getElementById('si-user').focus(), 120);
@@ -1049,7 +1388,9 @@
     document.getElementById('modal-overlay').addEventListener('click', e => {
       if (e.target === document.getElementById('modal-overlay')) closeLogin();
     });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLogin(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closeLogin(); closeDemo(); }
+    });
 
     function switchTab(t) {
       document.getElementById('tab-signin').classList.toggle('active', t === 'signin');
@@ -1058,7 +1399,6 @@
       document.getElementById('form-register').classList.toggle('hidden', t !== 'register');
     }
 
-    // Enter-key submit
     ['si-user','si-pass'].forEach(id =>
       document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doSignIn(); })
     );
@@ -1111,6 +1451,62 @@
       localStorage.setItem('wedboard:session', JSON.stringify({ userId: id, username, role: 'couple' }));
       window.location.href = 'index.html';
     }
+
+    // ── Demo Modal ───────────────────────────────────────
+    const demoScript = [
+      { role: 'user', text: 'What time does our ceremony start on June 21st?' },
+      { role: 'ai',   text: 'Based on your contract with Golden Hour Studio, ceremony begins at 4:30 PM. Guest arrival is from 4:00 PM. All vendors have been notified.' },
+      { role: 'user', text: '@ai generate a full vendor timeline doc' },
+      { role: 'ai',   text: 'Done! I\'ve generated "vendor_schedule_june21.docx" — it includes all 4 vendor contact details, arrival windows, ceremony & reception timelines, and a breakdown by hour. Ready to download below.' },
+    ];
+
+    let demoTimer = null;
+
+    function openDemo() {
+      const chat = document.getElementById('demo-chat');
+      chat.innerHTML = '';
+      document.getElementById('demo-overlay').classList.add('open');
+
+      let delay = 300;
+      demoScript.forEach((msg, i) => {
+        setTimeout(() => {
+          if (i > 0) {
+            const typing = document.createElement('div');
+            typing.className = 'demo-msg';
+            typing.innerHTML = `<div class="demo-avatar ai-av">AI</div><div class="demo-typing"><span></span><span></span><span></span></div>`;
+            chat.appendChild(typing);
+            typing.classList.add('shown');
+            setTimeout(() => {
+              typing.remove();
+              appendDemoMsg(chat, msg);
+            }, 900);
+          } else {
+            appendDemoMsg(chat, msg);
+          }
+        }, delay);
+        delay += msg.role === 'ai' ? 2200 : 1200;
+      });
+    }
+
+    function appendDemoMsg(chat, msg) {
+      const el = document.createElement('div');
+      el.className = `demo-msg${msg.role === 'user' ? ' user-msg' : ''}`;
+      el.innerHTML = `
+        <div class="demo-avatar ${msg.role === 'ai' ? 'ai-av' : 'user-av'}">${msg.role === 'ai' ? 'AI' : 'You'}</div>
+        <div class="demo-bubble">${msg.text}</div>
+      `;
+      chat.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('shown'));
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function closeDemo() {
+      document.getElementById('demo-overlay').classList.remove('open');
+      clearTimeout(demoTimer);
+    }
+    document.getElementById('demo-overlay').addEventListener('click', e => {
+      if (e.target === document.getElementById('demo-overlay')) closeDemo();
+    });
 
     // ── FAQ Accordion ────────────────────────────────────
     function toggleFaq(btn) {
