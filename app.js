@@ -466,6 +466,10 @@ function respondToAi(q) {
   dispatchAI(messages, backendQ, {
     showTypingFn: showTyping,
     removeTypingFn: removeTyping,
+    onThinking(text) {
+      const ind = document.getElementById("typing-ind");
+      if (ind) { const a = ind.querySelector(".msg-author"); if (a) a.textContent = text; }
+    },
     onChunk(chunk) {
       if (!node) {
         removeTyping();
@@ -541,7 +545,23 @@ function readText(f) { return new Promise((res, rej) => { const r = new FileRead
 function readDataUrl(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result || "")); r.onerror = () => rej(r.error); r.readAsDataURL(f); }); }
 
 // ═══ BACKEND ══════════════════════════════════════════════════════════════════
-async function checkBackend() { try { const r = await fetch(`${BACKEND_URL}/api/status`, { signal: AbortSignal.timeout(2500) }); if (r.ok) backendOnline = true; } catch { backendOnline = false; } }
+async function checkBackend() {
+  try {
+    const r = await fetch(`${BACKEND_URL}/api/status`, { signal: AbortSignal.timeout(2500) });
+    if (r.ok) {
+      backendOnline = true;
+      // Race-condition fix: restoreSession runs before this resolves, so join may have been
+      // skipped. Retry it now that we know the backend is up.
+      if (state.currentUser && state.cohort && !state.cohortId) {
+        try {
+          const j = await apiPost("/api/join", { username: state.currentUser.username, cohort: state.cohort });
+          state.userId   = j.user_id;
+          state.cohortId = j.cohort_id;
+        } catch {}
+      }
+    }
+  } catch { backendOnline = false; }
+}
 async function apiPost(path, body) { const r = await fetch(`${BACKEND_URL}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 async function apiGet(path) { const r = await fetch(`${BACKEND_URL}${path}`); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 
@@ -592,19 +612,19 @@ function buildAIMessages(question, chatHistory) {
   return result;
 }
 
-// ── Direct OpenAI streaming (SSE) ─────────────────────────────────────────────
+// ── Direct Gemini streaming (OpenAI-compatible endpoint) ──────────────────────
 // onChunk(text), onDone(sources=[]), onError(msg)
 async function streamFromOpenAI(messages, onChunk, onDone, onError) {
   const key = getApiKey();
   if (!key) { onError("no_key"); return; }
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages, stream: true, max_tokens: 900, temperature: 0.5 })
+      body: JSON.stringify({ model: "gemini-2.5-flash-lite", messages, stream: true, max_tokens: 900, temperature: 0.5 })
     });
     if (!res.ok) {
-      let msg = `OpenAI API error (${res.status})`;
+      let msg = `Gemini API error (${res.status})`;
       try { const j = await res.json(); msg = j.error?.message || msg; } catch {}
       onError(msg); return;
     }
@@ -629,17 +649,94 @@ async function streamFromOpenAI(messages, onChunk, onDone, onError) {
   } catch (e) { onError(e.message || "Network error"); }
 }
 
+// ── UI command dispatcher (called by agent SSE stream) ───────────────────────
+function handleUICommands(commands) {
+  for (const cmd of commands) {
+    if (cmd.action === "switch_tab") {
+      const btn = document.querySelector(`.c-tab-btn[data-tab="${cmd.tab}"]`);
+      if (btn) btn.click();
+
+    } else if (cmd.action === "populate_discover_tab") {
+      const normalized = (cmd.vendors || []).map(v => ({
+        id:      v.vendor_id,
+        name:    v.name,
+        cat:     v.category,
+        city:    v.city,
+        rating:  v.rating,
+        reviews: v.reviews,
+        price:   v.price,
+        desc:    v.description,
+        av:      (v.name || "V")[0].toUpperCase(),
+        color:   DISCOVER_CAT_COLORS[v.category] || "peach",
+        website: v.website,
+        phone:   v.phone,
+      }));
+      if (cmd.location) {
+        discoverLocation = cmd.location;
+        localStorage.setItem("wedboard:discoverLocation", discoverLocation);
+        const inp = document.getElementById("c-location-input");
+        if (inp) inp.value = discoverLocation;
+      }
+      const cacheKey = `${cmd.location}|${cmd.category || "all"}`;
+      discoverCache[cacheKey] = normalized;
+      const panel = document.getElementById("c-tab-discover");
+      if (panel && !panel.classList.contains("hidden")) {
+        _setDiscoverStatus(normalized.length ? `✦ ${normalized.length} vendors found in ${cmd.location}` : "");
+        _renderVendorCards(normalized);
+      }
+
+    } else if (cmd.action === "update_seating") {
+      for (const op of (cmd.operations || [])) {
+        const guest = seatingState.guests.find(
+          g => g.name.toLowerCase() === (op.guest || "").toLowerCase()
+        );
+        if (!guest) continue;
+        if (op.action === "seat") {
+          guest.tableId = (op.table || 1) - 1;
+          guest.seat    = (op.seat  || 1) - 1;
+        } else if (op.action === "move") {
+          guest.tableId = (op.to_table || 1) - 1;
+          const taken = new Set(
+            seatingState.guests.filter(g => g.tableId === guest.tableId && g.id !== guest.id).map(g => g.seat)
+          );
+          let s = 0; while (taken.has(s)) s++;
+          guest.seat = s;
+        } else if (op.action === "unseat") {
+          guest.tableId = null;
+          guest.seat    = null;
+        }
+      }
+      renderSeating();
+
+    } else if (cmd.action === "trigger_doc_generation") {
+      generateDocument(cmd.prompt || "");
+    }
+  }
+}
+
 // ── Unified AI dispatch: backend → direct OpenAI → local ─────────────────────
-// callbacks: { onChunk, onDone, onError, showTypingFn, removeTypingFn }
+// callbacks: { onChunk, onDone, onError, showTypingFn, removeTypingFn, onThinking? }
 function dispatchAI(messages, backendQuestion, callbacks) {
-  const { onChunk, onDone, onError, showTypingFn, removeTypingFn } = callbacks;
+  const { onChunk, onDone, onError, showTypingFn, removeTypingFn, onThinking } = callbacks;
   showTypingFn();
 
-  // ── Tier 1: Flask backend (SSE) ───────────────────────────────────────────
+  // ── Tier 1: Flask backend agent stream ────────────────────────────────────
   if (backendOnline && state.cohortId) {
-    fetch(`${BACKEND_URL}/api/ai-query-stream`, {
+    const guestList = seatingState.guests.map(g => g.name);
+    const currentSeating = {
+      guests:        seatingState.guests.map(g => ({ name: g.name, tableId: g.tableId, seat: g.seat })),
+      tables:        seatingState.tables,
+      seatsPerTable: seatingState.seatsPerTable,
+    };
+    fetch(`${BACKEND_URL}/api/agent-chat-stream`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cohort_id: state.cohortId, question: backendQuestion, user_id: state.userId })
+      body: JSON.stringify({
+        cohort_id:       state.cohortId,
+        question:        backendQuestion,
+        user_id:         state.userId,
+        guest_list:      guestList,
+        current_seating: currentSeating,
+      })
     }).then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -651,9 +748,11 @@ function dispatchAI(messages, backendQuestion, callbacks) {
           if (!l.startsWith("data: ")) continue;
           try {
             const ev = JSON.parse(l.slice(6));
-            if (ev.type === "sources") srcs = ev.sources || [];
-            if (ev.type === "chunk")   onChunk(ev.content);
-            if (ev.type === "done")    onDone(srcs);
+            if (ev.type === "thinking")    { if (onThinking) onThinking(ev.text); }
+            if (ev.type === "ui_commands") handleUICommands(ev.commands || []);
+            if (ev.type === "sources")     srcs = ev.sources || [];
+            if (ev.type === "chunk")       onChunk(ev.content);
+            if (ev.type === "done")        onDone(srcs);
           } catch {}
         }
       };
@@ -670,8 +769,8 @@ function dispatchAI(messages, backendQuestion, callbacks) {
     return;
   }
 
-  // ── Tier 2: Direct OpenAI API ─────────────────────────────────────────────
-  if (getApiKey()) {
+  // ── Tier 2: Direct Gemini API (only when backend is confirmed offline) ───────
+  if (!backendOnline && getApiKey()) {
     streamFromOpenAI(messages, onChunk, onDone, onError);
     return;
   }
@@ -1736,6 +1835,14 @@ function sendAiPanel() {
   dispatchAI(messages, q, {
     showTypingFn: showAiPanelTyping,
     removeTypingFn: removeAiPanelTyping,
+    onThinking(text) {
+      const ind = document.getElementById("ai-panel-typing");
+      if (ind) {
+        let lbl = ind.querySelector(".ap-think-lbl");
+        if (!lbl) { lbl = document.createElement("div"); lbl.className = "ap-think-lbl ai-panel-msg-text"; ind.appendChild(lbl); }
+        lbl.textContent = text;
+      }
+    },
     onChunk(chunk) {
       removeAiPanelTyping();
       if (!msgEl) { msgEl = createAiPanelMsgEl("ai"); feed.appendChild(msgEl); }
