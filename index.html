@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () =>
@@ -128,90 +129,113 @@
   <!-- ═══ VIEW: COUPLE DASHBOARD ═══ -->
   <div id="view-couple" class="view hidden">
     <div class="messenger">
-      <!-- Sidebar -->
-      <aside class="m-sidebar">
-        <div class="m-sidebar-head">
-          <h1 class="m-logo">W</h1>
-          <div class="m-sidebar-actions">
-            <button class="icon-btn" id="c-settings-btn" title="Settings">&#9881;</button>
-          </div>
-          <!-- Settings dropdown -->
-          <div class="dropdown hidden" id="c-settings-menu">
-            <div class="dropdown-header">
-              <div class="dropdown-avatar" id="c-dd-avatar"></div>
-              <div><strong id="c-dd-name"></strong><p class="muted sm">Couple Account</p></div>
-            </div>
-            <div class="dropdown-sep"></div>
-            <button class="dropdown-item" id="c-manage-vendors">Manage Vendors</button>
-            <button class="dropdown-item" id="c-write-review">Write a Review</button>
-            <button class="dropdown-item" id="c-kb-btn">Knowledge Base</button>
-            <button class="dropdown-item" id="c-configure-ai-btn">&#128273; Configure AI</button>
-            <div class="dropdown-sep"></div>
-            <button class="dropdown-item danger" id="c-logout">Sign Out</button>
-          </div>
-        </div>
+      <!-- Hidden vendor registry — keeps JS selectors functional without a visible sidebar -->
+      <div id="c-vendor-list" aria-hidden="true" style="display:none">
+        <button class="c-vendor-btn active" data-vendor="Golden Hour Studio" data-cat="Photographer" data-color="peach"></button>
+        <button class="c-vendor-btn" data-vendor="Petal &amp; Vine" data-cat="Florist" data-color="mint"></button>
+        <button class="c-vendor-btn" data-vendor="Blue Note Events" data-cat="DJ / Music" data-color="sky"></button>
+        <button class="c-vendor-btn" data-vendor="Hearth Table" data-cat="Caterer" data-color="lavender"></button>
+      </div>
+      <input id="c-vendor-search" type="text" aria-hidden="true" tabindex="-1" style="display:none">
 
-        <!-- Wedding label -->
-        <div class="m-wedding-label">
-          <p class="tiny-label">YOUR WEDDING</p>
-          <strong id="c-wedding-name"></strong>
-        </div>
-
-        <!-- Vendor list -->
-        <p class="sidebar-section-title">Vendors</p>
-        <div class="m-chat-list" id="c-vendor-list">
-          <button class="m-chat-item c-vendor-btn active" data-vendor="Golden Hour Studio" data-cat="Photographer">
-            <div class="m-avatar peach">G</div>
-            <div class="m-chat-info"><strong>Golden Hour Studio</strong><span>Photographer</span></div>
-          </button>
-          <button class="m-chat-item c-vendor-btn" data-vendor="Petal & Vine" data-cat="Florist">
-            <div class="m-avatar mint">P</div>
-            <div class="m-chat-info"><strong>Petal &amp; Vine</strong><span>Florist</span></div>
-          </button>
-          <button class="m-chat-item c-vendor-btn" data-vendor="Blue Note Events" data-cat="DJ / Music">
-            <div class="m-avatar sky">B</div>
-            <div class="m-chat-info"><strong>Blue Note Events</strong><span>DJ / Music</span></div>
-          </button>
-          <button class="m-chat-item c-vendor-btn" data-vendor="Hearth Table" data-cat="Caterer">
-            <div class="m-avatar lavender">H</div>
-            <div class="m-chat-info"><strong>Hearth Table</strong><span>Caterer</span></div>
-          </button>
-        </div>
-      </aside>
-
-      <!-- Main chat -->
+      <!-- Full-width main content -->
       <main class="m-main">
 
-        <!-- Tab navigation -->
+        <!-- Tab navigation with account controls on the right -->
         <nav class="c-tab-nav">
-          <button class="c-tab-btn active" data-tab="chat">&#128172; Chat</button>
-          <button class="c-tab-btn" data-tab="discover">&#128269; Discover</button>
-          <button class="c-tab-btn" data-tab="seating">&#129681; Seating</button>
-          <button class="c-tab-btn" data-tab="cards">&#128140; Cards</button>
-          <button class="c-tab-btn" data-tab="party">&#128140; Party</button>
-          <button class="c-tab-btn" data-tab="budget">&#128176; Budget</button>
-          <button class="c-tab-btn" data-tab="checklist">&#9989; Checklist</button>
+          <button class="c-tab-btn active" data-tab="chat"><i data-lucide="message-circle"></i><span>Chat</span></button>
+          <button class="c-tab-btn" data-tab="discover"><i data-lucide="compass"></i><span>Discover</span></button>
+          <button class="c-tab-btn" data-tab="seating"><i data-lucide="layout-grid"></i><span>Seating</span></button>
+          <button class="c-tab-btn" data-tab="cards"><i data-lucide="file-heart"></i><span>Cards</span></button>
+          <button class="c-tab-btn" data-tab="party"><i data-lucide="users"></i><span>Party</span></button>
+          <button class="c-tab-btn" data-tab="budget"><i data-lucide="wallet"></i><span>Budget</span></button>
+          <button class="c-tab-btn" data-tab="checklist"><i data-lucide="check-square-2"></i><span>Checklist</span></button>
+          <button class="c-tab-btn c-tab-btn--ai" data-tab="ai-chat"><i data-lucide="sparkles"></i><span>AI Assistant</span></button>
+          <div class="tab-nav-spacer"></div>
+          <div class="tab-nav-user">
+            <span class="tab-wedding-chip">
+              <i data-lucide="heart"></i>
+              <span id="c-wedding-name"></span>
+            </span>
+            <div class="settings-wrap">
+              <button class="icon-btn settings-icon-btn" id="c-settings-btn" title="Account &amp; Settings">
+                <i data-lucide="settings-2"></i>
+              </button>
+              <div class="dropdown tab-dropdown hidden" id="c-settings-menu">
+                <div class="dropdown-header">
+                  <div class="dropdown-avatar" id="c-dd-avatar"></div>
+                  <div><strong id="c-dd-name"></strong><p class="muted sm">Couple Account</p></div>
+                </div>
+                <div class="dropdown-sep"></div>
+                <button class="dropdown-item" id="c-manage-vendors">Manage Vendors</button>
+                <button class="dropdown-item" id="c-write-review">Write a Review</button>
+                <button class="dropdown-item" id="c-kb-btn">Knowledge Base</button>
+                <button class="dropdown-item" id="c-configure-ai-btn">&#128273; Configure AI</button>
+                <div class="dropdown-sep"></div>
+                <button class="dropdown-item danger" id="c-logout">Sign Out</button>
+              </div>
+            </div>
+          </div>
         </nav>
 
         <!-- ── Chat Panel ── -->
         <div id="c-tab-chat" class="c-tab-panel">
-          <header class="m-topbar">
-            <div class="m-topbar-info">
-              <div class="m-avatar-sm peach" id="c-topbar-avatar">G</div>
-              <div><strong id="c-chat-title">Golden Hour Studio</strong><span class="muted sm" id="c-chat-subtitle">Photographer</span></div>
+
+          <!-- ··· Conversations inbox (default view) ··· -->
+          <div id="c-conversations-view">
+            <header class="m-topbar conversations-topbar">
+              <div class="m-topbar-info">
+                <div class="conv-topbar-icon"><i data-lucide="message-circle"></i></div>
+                <div>
+                  <strong>Messages</strong>
+                  <span class="muted sm" id="c-conv-count">Loading…</span>
+                </div>
+              </div>
+              <div class="m-topbar-actions">
+                <button class="btn btn-ghost btn-sm" id="c-new-chat-btn"><i data-lucide="plus"></i> New Chat</button>
+              </div>
+            </header>
+
+            <!-- Search within conversations -->
+            <div class="conv-search-bar">
+              <i data-lucide="search"></i>
+              <input id="c-conv-search" type="text" placeholder="Search conversations…" autocomplete="off">
             </div>
-            <div class="m-topbar-actions">
-              <span class="retrieval-pill" id="c-retrieval">Retrieval idle</span>
-            </div>
-          </header>
-          <section id="c-chat-feed" class="m-feed" aria-live="polite"></section>
-          <section class="m-composer">
-            <div class="m-composer-hint"><span>Tip: <code>@ai</code> ask questions &middot; <code>@ai generate doc</code> create documents</span></div>
-            <div class="m-composer-row">
-              <textarea id="c-input" rows="1" placeholder="Type a message..." disabled></textarea>
-              <button id="c-send" class="btn btn-send" disabled>&#10148;</button>
-            </div>
-          </section>
+
+            <div id="c-conversations-list" class="conversations-list"></div>
+          </div>
+
+          <!-- ··· Thread view (opens when a conversation is tapped) ··· -->
+          <div id="c-thread-view" class="hidden">
+            <header class="m-topbar thread-topbar">
+              <div class="m-topbar-info">
+                <button class="btn-back-thread" id="c-back-btn" title="Back to messages">
+                  <i data-lucide="arrow-left"></i>
+                </button>
+                <div class="m-avatar-sm peach" id="c-thread-avatar">G</div>
+                <div>
+                  <strong id="c-chat-title">Golden Hour Studio</strong>
+                  <span class="muted sm" id="c-chat-subtitle">Photographer</span>
+                </div>
+              </div>
+              <div class="m-topbar-actions">
+                <span class="retrieval-pill" id="c-retrieval">Retrieval idle</span>
+              </div>
+            </header>
+            <section id="c-chat-feed" class="m-feed" aria-live="polite"></section>
+            <section class="m-composer">
+              <div class="m-composer-inner">
+                <button id="c-ai-quick-btn" class="btn-composer-ai" title="Open AI Assistant">
+                  <i data-lucide="sparkles"></i>
+                </button>
+                <textarea id="c-input" rows="1" placeholder="Message your vendor…" disabled></textarea>
+                <button id="c-send" class="btn-composer-send" disabled title="Send">
+                  <i data-lucide="send"></i>
+                </button>
+              </div>
+            </section>
+          </div>
+
         </div>
 
         <!-- ── Discover Panel ── -->
@@ -416,6 +440,36 @@
             <div class="m-topbar-actions"><button class="btn btn-primary btn-sm" id="c-checklist-add-btn">+ Add Task</button></div>
           </header>
           <div class="checklist-body" id="c-checklist-body"></div>
+        </div>
+
+        <!-- ── AI Assistant Tab ── -->
+        <div id="c-tab-ai-chat" class="c-tab-panel hidden">
+          <header class="m-topbar ai-tab-topbar">
+            <div class="m-topbar-info">
+              <div class="ai-tab-avatar">&#10022;</div>
+              <div>
+                <strong>AI Wedding Planner</strong>
+                <span class="muted sm">Ask anything · manage budget · update checklist</span>
+              </div>
+            </div>
+            <div class="m-topbar-actions">
+              <span class="retrieval-pill" id="c-ai-tab-retrieval">Ready</span>
+              <button class="btn btn-ghost btn-sm" id="c-ai-tab-clear">Clear chat</button>
+            </div>
+          </header>
+          <section id="c-ai-tab-feed" class="m-feed ai-tab-feed" aria-live="polite"></section>
+          <section class="m-composer ai-tab-composer">
+            <div class="ai-tab-suggestions" id="c-ai-tab-suggestions">
+              <button class="ai-suggestion-chip" data-q="What's left on my wedding checklist?">&#9745; Checklist status</button>
+              <button class="ai-suggestion-chip" data-q="Summarize my current budget">&#128176; Budget summary</button>
+              <button class="ai-suggestion-chip" data-q="Help me write my vows">&#10084; Write vows</button>
+              <button class="ai-suggestion-chip" data-q="Give me a wedding day timeline">&#128197; Day timeline</button>
+            </div>
+            <div class="m-composer-row">
+              <textarea id="c-ai-tab-input" rows="1" placeholder="Ask a question or give a command…" maxlength="400"></textarea>
+              <button id="c-ai-tab-send" class="btn btn-send">&#10148;</button>
+            </div>
+          </section>
         </div>
 
       </main>
@@ -650,29 +704,6 @@
         <div class="manage-item"><div class="m-avatar-sm lavender">A</div><div><strong>Ada &amp; Leon</strong><span class="muted sm">Aug 15</span></div><button class="btn btn-ghost btn-tiny danger">Blacklist</button></div>
         <div class="manage-item"><div class="m-avatar-sm mint">J</div><div><strong>Jill &amp; Carlos</strong><span class="muted sm">Oct 3</span></div><button class="btn btn-ghost btn-tiny danger">Blacklist</button></div>
       </div>
-    </div>
-  </div>
-
-  <!-- ═══ AI ASSISTANT (floating) ═══ -->
-  <button class="ai-fab hidden" id="c-ai-fab" title="Ask AI Assistant" data-tooltip="AI Wedding Planner">
-    <span class="ai-fab-icon">&#10022;</span>
-  </button>
-
-  <div class="ai-panel hidden" id="c-ai-panel">
-    <div class="ai-panel-head">
-      <div class="ai-panel-title">
-        <div class="ai-panel-avatar">&#10022;</div>
-        <div>
-          <strong>AI Wedding Planner</strong>
-          <p class="muted sm" style="margin:1px 0 0">Ask me anything</p>
-        </div>
-      </div>
-      <button class="icon-close" id="c-ai-panel-close">&times;</button>
-    </div>
-    <div class="ai-panel-feed" id="c-ai-panel-feed"></div>
-    <div class="ai-panel-composer">
-      <input id="c-ai-panel-input" type="text" placeholder="Vendors, budget, timeline, seating…" maxlength="300">
-      <button class="btn btn-primary btn-sm" id="c-ai-panel-send">&#10148;</button>
     </div>
   </div>
 

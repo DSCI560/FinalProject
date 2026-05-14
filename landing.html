@@ -83,38 +83,51 @@
       padding: 13px 28px;
       font: inherit; font-size: .88rem; font-weight: 600;
       cursor: pointer; letter-spacing: .03em;
-      transition: all .2s;
+      transition: transform .28s cubic-bezier(.34,1.56,.64,1), box-shadow .24s ease, background .18s ease, border-color .18s ease, color .18s ease;
     }
     .btn-primary {
       background: linear-gradient(135deg, #C8AE7D, var(--gold-2));
       color: #fff;
       box-shadow: 0 4px 18px rgba(193,167,117,.38);
     }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(193,167,117,.5); }
+    .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 14px 38px rgba(193,167,117,.55); }
     .btn-ghost {
       background: transparent;
       color: var(--ink-2);
       border: 1.5px solid var(--line);
     }
-    .btn-ghost:hover { background: var(--gold-soft); border-color: var(--gold); }
+    .btn-ghost:hover { background: var(--gold-soft); border-color: var(--gold); transform: translateY(-2px); box-shadow: 0 6px 22px rgba(193,167,117,.14); }
 
     /* Scroll-reveal */
-    .reveal { opacity: 0; transform: translateY(28px); transition: opacity .65s ease, transform .65s ease; }
+    .reveal { opacity: 0; transform: translateY(34px); transition: opacity .72s cubic-bezier(.16,1,.3,1), transform .72s cubic-bezier(.16,1,.3,1); }
     .reveal.visible { opacity: 1; transform: translateY(0); }
-    .reveal-delay-1 { transition-delay: .1s; }
-    .reveal-delay-2 { transition-delay: .2s; }
-    .reveal-delay-3 { transition-delay: .3s; }
-    .reveal-delay-4 { transition-delay: .4s; }
+    .reveal-delay-1 { transition-delay: .12s; }
+    .reveal-delay-2 { transition-delay: .24s; }
+    .reveal-delay-3 { transition-delay: .36s; }
+    .reveal-delay-4 { transition-delay: .48s; }
 
     /* ── Navbar ─────────────────────────────────────────── */
     .navbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 900;
-      background: rgba(250,249,246,.88);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--line);
-      transition: box-shadow .2s;
+      background: transparent;
+      border-bottom: 1px solid transparent;
+      transition: background .4s ease, border-color .4s ease, backdrop-filter .4s ease, box-shadow .4s ease;
     }
-    .navbar.scrolled { box-shadow: var(--shadow); }
+    .navbar.scrolled {
+      background: rgba(250,249,246,.92);
+      backdrop-filter: blur(24px) saturate(1.8);
+      -webkit-backdrop-filter: blur(24px) saturate(1.8);
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 4px 24px rgba(60,50,40,.08);
+    }
+    .navbar:not(.scrolled) .nav-links a { color: rgba(255,255,255,.88); }
+    .navbar:not(.scrolled) .nav-links a:hover { color: #fff; }
+    .navbar:not(.scrolled) .nav-login {
+      background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.28); color: rgba(255,255,255,.92);
+    }
+    .navbar:not(.scrolled) .nav-login:hover {
+      background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.45);
+    }
     .navbar-inner {
       display: flex; align-items: center; justify-content: space-between;
       height: 66px;
@@ -195,6 +208,7 @@
       font-size: clamp(2.6rem, 6vw, 4.4rem);
       font-weight: 500; line-height: 1.18; color: #fff;
       margin-bottom: 22px; letter-spacing: .01em;
+      text-shadow: 0 2px 20px rgba(0,0,0,.38), 0 6px 48px rgba(0,0,0,.22);
     }
     .hero h1 em { font-style: italic; color: #E8C97A; }
     .hero-ai-badge {
@@ -236,9 +250,10 @@
       background: linear-gradient(180deg, #2A2520, #1A1714);
       border-radius: 18px 18px 0 0;
       box-shadow:
-        0 0 0 1.5px rgba(255,255,255,.08),
-        0 24px 64px rgba(0,0,0,.45),
-        0 8px 24px rgba(0,0,0,.3);
+        0 0 0 1.5px rgba(255,255,255,.1),
+        0 0 0 6px rgba(193,167,117,.14),
+        0 36px 90px rgba(0,0,0,.58),
+        0 14px 36px rgba(0,0,0,.34);
     }
     .laptop-lid-top {
       display: flex; align-items: center; justify-content: center;
@@ -351,7 +366,11 @@
       font-size: .68rem; font-weight: 600; letter-spacing: .18em; text-transform: uppercase;
       color: var(--gold-2); margin-bottom: 20px;
     }
-    .marquee-outer { overflow: hidden; }
+    .marquee-outer {
+      overflow: hidden;
+      mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+      -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+    }
     .marquee-track {
       display: flex; gap: 0;
       width: max-content;
@@ -393,26 +412,21 @@
 
     .feature-row-visual {
       border-radius: 24px; overflow: hidden;
-      background: linear-gradient(135deg, var(--bg-2), var(--bg-3));
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow-lg);
+      background: linear-gradient(135deg, rgba(255,255,255,.68), rgba(244,241,235,.48));
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,.58);
+      box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,.65);
       aspect-ratio: 4/3;
       display: flex; align-items: center; justify-content: center;
-      position: relative;
+      position: relative; padding: 26px;
     }
     .feature-row-visual::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse at 30% 30%, rgba(193,167,117,.10), transparent 65%);
+      content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 15% 20%, rgba(193,167,117,.2), transparent 52%),
+        radial-gradient(ellipse at 85% 82%, rgba(230,193,193,.16), transparent 52%);
     }
-    .feature-visual-icon {
-      width: 88px; height: 88px; border-radius: 22px;
-      background: linear-gradient(135deg, var(--gold), var(--gold-2));
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 16px 48px rgba(193,167,117,.4), inset 0 1px 0 rgba(255,255,255,.3);
-      position: relative; z-index: 1;
-    }
-    .feature-visual-icon svg { width: 44px; height: 44px; color: #fff; }
+    .fv-inner { position: relative; z-index: 1; width: 100%; display: flex; flex-direction: column; gap: 10px; }
 
     .feature-row-text {}
     .feature-row-text .eyebrow { margin-bottom: 12px; }
@@ -447,7 +461,13 @@
       display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 40px; position: relative;
     }
-    .how-step { text-align: center; }
+    .how-steps-connector {
+      position: absolute; top: 28px;
+      left: calc(16.67% + 30px); right: calc(16.67% + 30px);
+      border-top: 2px dashed rgba(193,167,117,.32);
+      z-index: 0; pointer-events: none;
+    }
+    .how-step { text-align: center; position: relative; z-index: 1; }
     .how-step-num {
       width: 56px; height: 56px; border-radius: 50%;
       background: var(--bg); border: 1.5px solid var(--gold-mid);
@@ -455,7 +475,7 @@
       font-family: 'Playfair Display', serif; font-size: 1.3rem;
       color: var(--gold-2); font-weight: 500;
       box-shadow: 0 0 0 8px rgba(193,167,117,.05), var(--shadow);
-      margin-bottom: 20px;
+      margin-bottom: 20px; position: relative; z-index: 1;
     }
     .how-step h4 {
       font-family: 'Playfair Display', Georgia, serif;
@@ -769,6 +789,140 @@
       border-top: 1px solid var(--line);
     }
 
+    /* ── Feature Visuals ────────────────────────────────── */
+
+    /* Shared mini avatar */
+    .fv-av {
+      width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif; font-size: .6rem; font-weight: 700; color: #fff;
+    }
+    .fv-av.peach { background: linear-gradient(145deg,#EAA96C,#C07030); }
+    .fv-av.mint  { background: linear-gradient(145deg,#6BBE90,#368C5C); }
+    .fv-av.sky   { background: linear-gradient(145deg,#5A9ED4,#2868A8); }
+    .fv-av.lav   { background: linear-gradient(145deg,#A88ED8,#6A54B0); }
+
+    /* Chat UI mockup */
+    .fv-chat-ui {
+      background: rgba(250,249,246,.92); border: 1px solid var(--line);
+      border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(60,50,40,.12);
+    }
+    .fv-chat-header {
+      display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+      background: rgba(244,241,235,.9); border-bottom: 1px solid var(--line);
+    }
+    .fv-chat-title { font-size: .64rem; font-weight: 600; color: var(--ink-2); flex: 1; }
+    .fv-online-dot { width: 7px; height: 7px; border-radius: 50%; background: #6BBE90; flex-shrink: 0; }
+    .fv-msgs { padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
+    .fv-msg {
+      font-size: .6rem; line-height: 1.45; border-radius: 8px 8px 8px 3px; padding: 6px 10px;
+      max-width: 88%; background: rgba(244,241,235,.85); border: 1px solid var(--line); color: var(--muted);
+    }
+    .fv-msg-out {
+      align-self: flex-end; border-radius: 8px 8px 3px 8px;
+      background: linear-gradient(135deg, var(--gold), var(--gold-2)); color: #fff; border-color: transparent;
+    }
+    .fv-msg-ai { background: rgba(240,246,242,.88); border-color: rgba(107,190,144,.28); }
+    .fv-ai-chip {
+      display: inline-block; font-size: .5rem; font-weight: 700; letter-spacing: .04em;
+      background: rgba(107,190,144,.2); color: #2E7D52; padding: 1px 5px; border-radius: 4px; margin-right: 4px;
+    }
+    .fv-msg-doc {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(193,167,117,.1); border-color: var(--gold-mid); color: var(--gold-2); font-weight: 600;
+    }
+
+    /* Vendor discovery grid */
+    .fv-vendor-grid { display: flex; flex-direction: column; gap: 7px; }
+    .fv-vcard {
+      background: rgba(250,249,246,.9); border: 1px solid var(--line);
+      border-radius: 12px; padding: 9px 12px; box-shadow: 0 2px 10px rgba(60,50,40,.06);
+    }
+    .fv-vcard-featured { border-color: rgba(193,167,117,.45); background: rgba(255,252,247,.96); }
+    .fv-vcard-header { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+    .fv-vcard-name { font-size: .62rem; font-weight: 700; color: var(--ink-2); line-height: 1.1; }
+    .fv-vcard-cat  { font-size: .54rem; color: var(--muted); }
+    .fv-cat-badge {
+      margin-left: auto; font-size: .5rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+      background: rgba(193,167,117,.16); color: var(--gold-2); padding: 2px 7px; border-radius: 999px;
+    }
+    .fv-vcard-rating { font-size: .58rem; color: #C8A04A; margin-bottom: 2px; }
+    .fv-vcard-rating span { color: var(--muted); margin-left: 3px; }
+    .fv-vcard-price { font-size: .56rem; color: var(--muted); margin-bottom: 5px; }
+    .fv-add-btn {
+      background: linear-gradient(135deg, var(--gold), var(--gold-2)); color: #fff;
+      border: none; border-radius: 999px; font-size: .54rem; font-weight: 700; padding: 4px 10px; cursor: default;
+    }
+
+    /* Seating chart */
+    .fv-seating-inner { align-items: center; justify-content: center; min-height: 0; }
+    .fv-seating { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .fv-table-label {
+      font-size: .6rem; font-weight: 700; color: var(--ink-2);
+      letter-spacing: .08em; text-transform: uppercase;
+    }
+    .fv-table-ring {
+      width: 148px; height: 148px; border-radius: 50%;
+      border: 2px dashed rgba(193,167,117,.4); position: relative;
+      background: radial-gradient(circle, rgba(193,167,117,.07), transparent 70%);
+    }
+    .fv-table-center {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: 42px; height: 42px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(193,167,117,.18), rgba(193,167,117,.08));
+      border: 1px solid rgba(193,167,117,.38);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .fv-seat {
+      position: absolute; width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .46rem; font-weight: 700; color: var(--muted);
+      background: var(--bg); border: 1.5px solid var(--line);
+      transform: translate(-50%, -50%);
+    }
+    .fv-occupied { background: linear-gradient(135deg, var(--gold), var(--gold-2)); border-color: transparent; color: #fff; }
+    .fv-seat-1 { left: calc(50% + 63px); top: 50%; }
+    .fv-seat-2 { left: calc(50% + 44px); top: calc(50% - 44px); }
+    .fv-seat-3 { left: 50%; top: calc(50% - 63px); }
+    .fv-seat-4 { left: calc(50% - 44px); top: calc(50% - 44px); }
+    .fv-seat-5 { left: calc(50% - 63px); top: 50%; }
+    .fv-seat-6 { left: calc(50% - 44px); top: calc(50% + 44px); }
+    .fv-seat-7 { left: 50%; top: calc(50% + 63px); }
+    .fv-seat-8 { left: calc(50% + 44px); top: calc(50% + 44px); }
+    .fv-guest-pill {
+      font-size: .6rem; font-weight: 600; color: var(--gold-2);
+      background: rgba(193,167,117,.1); border: 1px solid var(--gold-mid);
+      padding: 4px 14px; border-radius: 999px;
+    }
+
+    /* Card studio */
+    .fv-card-inner { align-items: center; }
+    .fv-invitation {
+      background: rgba(255,252,248,.97); border: 1.5px solid rgba(193,167,117,.38);
+      border-radius: 14px; padding: 18px 22px; text-align: center;
+      box-shadow: 0 4px 22px rgba(193,167,117,.16), inset 0 1px 0 rgba(255,255,255,.85);
+      width: 100%;
+    }
+    .fv-invite-top { font-size: .52rem; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; margin-bottom: 5px; }
+    .fv-invite-names {
+      font-family: 'Playfair Display', serif; font-size: 1.15rem; font-weight: 500;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 5px;
+    }
+    .fv-invite-divider { font-size: .66rem; color: var(--gold); margin-bottom: 6px; letter-spacing: .22em; }
+    .fv-invite-date { font-family: 'Playfair Display', serif; font-size: .58rem; font-style: italic; color: var(--ink-2); line-height: 1.5; margin-bottom: 4px; }
+    .fv-invite-venue { font-size: .54rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; }
+    .fv-invite-time { font-size: .52rem; color: var(--muted); font-style: italic; }
+    .fv-card-chips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+    .fv-chip {
+      font-size: .54rem; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+      background: rgba(244,241,235,.8); border: 1px solid var(--line); color: var(--muted);
+    }
+    .fv-chip.active {
+      background: linear-gradient(135deg, var(--gold), var(--gold-2)); color: #fff; border-color: transparent;
+    }
+
     /* ── Responsive ─────────────────────────────────────── */
     @media (max-width: 900px) {
       .footer-inner { grid-template-columns: 1fr 1fr; }
@@ -790,6 +944,7 @@
       .mockup-tabs .mockup-tab:nth-child(n+3) { display: none; }
       .modal-card { padding: 32px 24px; }
       .how-steps { grid-template-columns: 1fr; }
+      .how-steps-connector { display: none; }
     }
   </style>
 </head>
@@ -1006,38 +1161,96 @@
       <!-- Row 1: visual left, text right -->
       <div class="feature-row reveal">
         <div class="feature-row-visual">
-          <div class="feature-visual-icon">
-            <i data-lucide="bot"></i>
+          <div class="fv-inner">
+            <div class="fv-chat-ui">
+              <div class="fv-chat-header">
+                <div class="fv-av peach">G</div>
+                <div class="fv-chat-title">Golden Hour Studio</div>
+                <div class="fv-online-dot"></div>
+              </div>
+              <div class="fv-msgs">
+                <div class="fv-msg">Could you confirm ceremony time for June 21st?</div>
+                <div class="fv-msg fv-msg-ai"><span class="fv-ai-chip">@ai</span>Ceremony starts at 4:30 PM. Guests arrive from 4:00 PM. All vendors have been synced.</div>
+                <div class="fv-msg fv-msg-out">@ai generate doc vendor timeline</div>
+                <div class="fv-msg fv-msg-doc">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  vendor_timeline.docx · Generated
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="feature-row-text">
           <span class="eyebrow">AI-Powered</span>
           <h3>AI Vendor Chat</h3>
           <p>Direct, intelligent conversations with your photographer, florist, caterer and more. The AI reads your uploaded documents and answers questions instantly — no more hunting through email threads.</p>
-          <span class="feature-tag">Powered by GPT-4</span>
+          <span class="feature-tag">Powered by Gemini AI</span>
         </div>
       </div>
 
       <!-- Row 2: text left, visual right -->
       <div class="feature-row reverse reveal">
         <div class="feature-row-visual">
-          <div class="feature-visual-icon">
-            <i data-lucide="compass"></i>
+          <div class="fv-inner">
+            <div class="fv-vendor-grid">
+              <div class="fv-vcard fv-vcard-featured">
+                <div class="fv-vcard-header">
+                  <div class="fv-av peach">G</div>
+                  <div><div class="fv-vcard-name">Golden Hour Studio</div><div class="fv-vcard-cat">Photography · New York</div></div>
+                  <span class="fv-cat-badge">Photo</span>
+                </div>
+                <div class="fv-vcard-rating">★★★★★ <span>4.9 (128 reviews)</span></div>
+                <div class="fv-vcard-price">$$$ · From $2,400</div>
+                <button class="fv-add-btn">+ Add to My Vendors</button>
+              </div>
+              <div class="fv-vcard">
+                <div class="fv-vcard-header">
+                  <div class="fv-av mint">P</div>
+                  <div><div class="fv-vcard-name">Petal &amp; Vine</div><div class="fv-vcard-cat">Floristry · Brooklyn</div></div>
+                </div>
+                <div class="fv-vcard-rating">★★★★★ <span>4.8 (94)</span></div>
+                <div class="fv-vcard-price">$$ · From $800</div>
+              </div>
+              <div class="fv-vcard">
+                <div class="fv-vcard-header">
+                  <div class="fv-av sky">B</div>
+                  <div><div class="fv-vcard-name">Blue Note Events</div><div class="fv-vcard-cat">DJ &amp; Music · Manhattan</div></div>
+                </div>
+                <div class="fv-vcard-rating">★★★★☆ <span>4.7 (61)</span></div>
+                <div class="fv-vcard-price">$$ · From $1,200</div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="feature-row-text">
           <span class="eyebrow">Curated Network</span>
           <h3>Smart Discovery</h3>
           <p>Browse curated vendors by category — photographers, florists, venues and more — and add them to your planning workspace with one click. Every vendor, beautifully organized.</p>
-          <span class="feature-tag">Curated Network</span>
+          <span class="feature-tag">210 Verified Vendors</span>
         </div>
       </div>
 
       <!-- Row 3: visual left, text right -->
       <div class="feature-row reveal">
-        <div class="feature-row-visual">
-          <div class="feature-visual-icon">
-            <i data-lucide="layout-grid"></i>
+        <div class="feature-row-visual fv-seating-inner">
+          <div class="fv-inner" style="align-items:center">
+            <div class="fv-seating">
+              <div class="fv-table-label">Table 1 · 8 Seats</div>
+              <div class="fv-table-ring">
+                <div class="fv-table-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--gold-2)"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                </div>
+                <div class="fv-seat fv-seat-1 fv-occupied">S&J</div>
+                <div class="fv-seat fv-seat-2 fv-occupied">M</div>
+                <div class="fv-seat fv-seat-3 fv-occupied">L</div>
+                <div class="fv-seat fv-seat-4 fv-occupied">K</div>
+                <div class="fv-seat fv-seat-5 fv-occupied">T</div>
+                <div class="fv-seat fv-seat-6 fv-occupied">A</div>
+                <div class="fv-seat fv-seat-7"></div>
+                <div class="fv-seat fv-seat-8"></div>
+              </div>
+              <div class="fv-guest-pill">6 / 8 seats filled</div>
+            </div>
           </div>
         </div>
         <div class="feature-row-text">
@@ -1050,9 +1263,22 @@
 
       <!-- Row 4: text left, visual right -->
       <div class="feature-row reverse reveal">
-        <div class="feature-row-visual">
-          <div class="feature-visual-icon">
-            <i data-lucide="scroll-text"></i>
+        <div class="feature-row-visual fv-card-inner">
+          <div class="fv-inner" style="align-items:center;gap:14px">
+            <div class="fv-invitation">
+              <div class="fv-invite-top">Together with their families</div>
+              <div class="fv-invite-names">Sarah &amp; James</div>
+              <div class="fv-invite-divider">— ✦ —</div>
+              <div class="fv-invite-date">Saturday, the Twenty-First of June<br>Two Thousand Twenty-Five</div>
+              <div class="fv-invite-venue">The Grand Oak Estate · Napa Valley, CA</div>
+              <div class="fv-invite-time">Ceremony at Four O'Clock in the Afternoon</div>
+            </div>
+            <div class="fv-card-chips">
+              <span class="fv-chip active">Invitation</span>
+              <span class="fv-chip">Place Card</span>
+              <span class="fv-chip">Thank You</span>
+              <span class="fv-chip">Menu</span>
+            </div>
           </div>
         </div>
         <div class="feature-row-text">
@@ -1074,6 +1300,7 @@
         <div class="gold-divider"></div>
       </div>
       <div class="how-steps">
+        <div class="how-steps-connector"></div>
         <div class="how-step reveal">
           <div class="how-step-num">I</div>
           <h4>Create Your Workspace</h4>
@@ -1354,9 +1581,11 @@
     lucide.createIcons();
 
     // ── Navbar scroll effect ─────────────────────────────
-    window.addEventListener('scroll', () => {
+    function updateNavbar() {
       document.getElementById('navbar').classList.toggle('scrolled', scrollY > 40);
-    });
+    }
+    window.addEventListener('scroll', updateNavbar);
+    updateNavbar();
 
     // ── Mobile nav ───────────────────────────────────────
     document.getElementById('hamburger').onclick = () =>

@@ -9,9 +9,9 @@ const STOP_WORDS = new Set(["a","an","and","are","as","at","be","by","for","from
 const BACKEND_URL = "http://192.168.0.149:5000";
 let backendOnline = false;
 
-// ── AI key (direct OpenAI fallback) ───────────────────────────────────────────
-function getApiKey() { return localStorage.getItem("wedboard:openai_key") || ""; }
-function saveApiKey(k) { k ? localStorage.setItem("wedboard:openai_key", k) : localStorage.removeItem("wedboard:openai_key"); }
+// ── AI key (Gemini offline fallback) ──────────────────────────────────────────
+function getApiKey() { return localStorage.getItem("wedboard:gemini_key") || ""; }
+function saveApiKey(k) { k ? localStorage.setItem("wedboard:gemini_key", k) : localStorage.removeItem("wedboard:gemini_key"); }
 
 const state = {
   currentUser: null,
@@ -40,6 +40,8 @@ function getHistory(uid, key) { try { return JSON.parse(localStorage.getItem(`we
 function saveHistory(uid, key, msgs) { localStorage.setItem(`wedboard:h:${uid}:${key}`, JSON.stringify(msgs.slice(-200))); }
 function getReviews() { try { return JSON.parse(localStorage.getItem("wedboard:reviews") || "[]"); } catch { return []; } }
 function saveReviews(r) { localStorage.setItem("wedboard:reviews", JSON.stringify(r)); }
+function getLastRead(uid, chatKey) { return localStorage.getItem(`wedboard:lr:${uid}:${chatKey}`) || ""; }
+function saveLastRead(uid, chatKey) { localStorage.setItem(`wedboard:lr:${uid}:${chatKey}`, new Date().toISOString()); }
 function simpleHash(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; } return h.toString(16); }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -170,27 +172,21 @@ function getCoupleWeddingName() {
 
 function showCoupleDash() {
   showView("couple");
-  document.getElementById("c-ai-fab").classList.remove("hidden");
+  if (typeof lucide !== "undefined") lucide.createIcons();
   const u = state.currentUser;
   document.getElementById("c-dd-avatar").textContent = u.username.charAt(0).toUpperCase();
   const display = (u.profile.partner1 && u.profile.partner2) ? `${u.profile.partner1} & ${u.profile.partner2}` : u.username;
   document.getElementById("c-dd-name").textContent = display;
   document.getElementById("c-wedding-name").textContent = getCoupleWeddingName();
-  document.getElementById("c-input").disabled = false;
-  document.getElementById("c-input").placeholder = "Type a message...";
-  document.getElementById("c-send").disabled = false;
   state.cohort = getCoupleWeddingName();
   state.joined = true;
 
-  // Auto-open first vendor
-  const first = document.querySelector(".c-vendor-btn.active");
-  if (first) {
-    state.activeVendorChat = first.dataset.vendor;
-    document.getElementById("c-chat-title").textContent = first.dataset.vendor;
-    document.getElementById("c-chat-subtitle").textContent = first.dataset.cat;
-    document.getElementById("c-topbar-avatar").textContent = first.dataset.vendor.charAt(0);
-  }
-  loadCoupleVendorChat();
+  // Show conversations inbox (not a thread)
+  document.getElementById("c-conversations-view").classList.remove("hidden");
+  document.getElementById("c-thread-view").classList.add("hidden");
+  state.activeVendorChat = null;
+
+  renderConversations();
   renderManageVendors();
 }
 
@@ -211,19 +207,132 @@ function loadCoupleVendorChat() {
   }
 }
 
+function renderConversations() {
+  if (!state.currentUser) return;
+  const list = document.getElementById("c-conversations-list");
+  list.innerHTML = "";
+  const vendors = Array.from(document.querySelectorAll(".c-vendor-btn"));
+  if (!vendors.length) {
+    list.innerHTML = '<div class="conv-empty"><i data-lucide="message-circle-dashed"></i><p>No vendors yet.</p><p class="muted sm">Add vendors from Discover to start chatting.</p></div>';
+    if (typeof lucide !== "undefined") lucide.createIcons();
+    document.getElementById("c-conv-count").textContent = "0 conversations";
+    return;
+  }
+  const uid = state.currentUser.id;
+  const cohort = state.cohort || getCoupleWeddingName();
+
+  const items = vendors.map(btn => {
+    const vendorName = btn.dataset.vendor;
+    const cat = btn.dataset.cat;
+    const colorClass = btn.dataset.color || btn.querySelector(".m-avatar")?.className.replace("m-avatar","").trim() || "peach";
+    const chatKey = `${cohort}::${vendorName}`;
+    const history = getHistory(uid, chatKey);
+    const msgs = history.filter(m => m.type !== "system");
+    const lastMsg = msgs.slice(-1)[0] || null;
+    const lastReadTs = getLastRead(uid, chatKey);
+    const unreadCount = lastReadTs ? msgs.filter(m => new Date(m.time) > new Date(lastReadTs)).length : msgs.length;
+    return { vendorName, cat, colorClass, lastMsg, unreadCount };
+  });
+
+  items.sort((a, b) => {
+    const ta = a.lastMsg ? new Date(a.lastMsg.time) : 0;
+    const tb = b.lastMsg ? new Date(b.lastMsg.time) : 0;
+    return tb - ta;
+  });
+
+  const total = items.length;
+  const unreadTotal = items.filter(i => i.unreadCount > 0).length;
+  document.getElementById("c-conv-count").textContent = unreadTotal > 0
+    ? `${total} conversations · ${unreadTotal} unread`
+    : `${total} conversation${total !== 1 ? "s" : ""}`;
+
+  items.forEach(({ vendorName, cat, colorClass, lastMsg, unreadCount }) => {
+    const item = document.createElement("button");
+    item.className = "conversation-item" + (unreadCount > 0 ? " unread" : "");
+    const preview = lastMsg
+      ? (lastMsg.text.length > 65 ? lastMsg.text.slice(0, 65) + "…" : lastMsg.text)
+      : "Start a conversation";
+    const timeStr = lastMsg ? timeAgo(new Date(lastMsg.time)) : "";
+    item.innerHTML = `<div class="m-avatar ${colorClass}">${vendorName.charAt(0)}</div>
+      <div class="conv-body">
+        <div class="conv-header">
+          <span class="conv-name">${esc(vendorName)}</span>
+          <span class="conv-time">${timeStr}</span>
+        </div>
+        <div class="conv-footer">
+          <span class="conv-preview">${esc(preview)}</span>
+          ${unreadCount > 0 ? `<span class="conv-unread">${unreadCount}</span>` : ""}
+        </div>
+        <span class="conv-cat">${esc(cat)}</span>
+      </div>`;
+    item.addEventListener("click", () => openThread(vendorName, cat, colorClass));
+    list.appendChild(item);
+  });
+}
+
+function openThread(vendorName, cat, colorClass) {
+  if (!state.currentUser) return;
+  if (state.activeVendorChat) {
+    saveHistory(state.currentUser.id, `${state.cohort}::${state.activeVendorChat}`, state.messages);
+  }
+  saveLastRead(state.currentUser.id, `${state.cohort}::${vendorName}`);
+
+  document.querySelectorAll(".c-vendor-btn").forEach(i => i.classList.remove("active"));
+  const btn = document.querySelector(`.c-vendor-btn[data-vendor="${vendorName.replace(/"/g, '\\"')}"]`);
+  if (btn) btn.classList.add("active");
+  state.activeVendorChat = vendorName;
+
+  document.getElementById("c-chat-title").textContent = vendorName;
+  document.getElementById("c-chat-subtitle").textContent = cat;
+  const avatar = document.getElementById("c-thread-avatar");
+  avatar.textContent = vendorName.charAt(0);
+  avatar.className = "m-avatar-sm " + (colorClass || "peach");
+
+  document.getElementById("c-input").disabled = false;
+  document.getElementById("c-send").disabled = false;
+
+  document.getElementById("c-conversations-view").classList.add("hidden");
+  document.getElementById("c-thread-view").classList.remove("hidden");
+
+  loadCoupleVendorChat();
+}
+
+function backToConversations() {
+  if (state.currentUser && state.activeVendorChat) {
+    saveHistory(state.currentUser.id, `${state.cohort}::${state.activeVendorChat}`, state.messages);
+    saveLastRead(state.currentUser.id, `${state.cohort}::${state.activeVendorChat}`);
+  }
+  state.activeVendorChat = null;
+  document.getElementById("c-thread-view").classList.add("hidden");
+  document.getElementById("c-conversations-view").classList.remove("hidden");
+  renderConversations();
+}
+
 // Couple vendor clicks — SCOPED selector: only .c-vendor-btn
 document.querySelectorAll(".c-vendor-btn").forEach(item => {
   item.addEventListener("click", () => {
-    if (state.currentUser && state.activeVendorChat) {
-      saveHistory(state.currentUser.id, `${state.cohort}::${state.activeVendorChat}`, state.messages);
+    const colorClass = item.dataset.color || item.querySelector(".m-avatar")?.className.replace("m-avatar","").trim() || "peach";
+    // Switch to chat tab if not already active
+    const chatTab = document.querySelector(".c-tab-btn[data-tab='chat']");
+    if (!chatTab.classList.contains("active")) {
+      document.querySelectorAll(".c-tab-btn").forEach(b => b.classList.remove("active"));
+      chatTab.classList.add("active");
+      document.querySelectorAll(".c-tab-panel").forEach(p => p.classList.add("hidden"));
+      document.getElementById("c-tab-chat").classList.remove("hidden");
     }
-    document.querySelectorAll(".c-vendor-btn").forEach(i => i.classList.remove("active"));
-    item.classList.add("active");
-    state.activeVendorChat = item.dataset.vendor;
-    document.getElementById("c-chat-title").textContent = item.dataset.vendor;
-    document.getElementById("c-chat-subtitle").textContent = item.dataset.cat;
-    document.getElementById("c-topbar-avatar").textContent = item.dataset.vendor.charAt(0);
-    loadCoupleVendorChat();
+    openThread(item.dataset.vendor, item.dataset.cat, colorClass);
+  });
+});
+
+// Conversations inbox wiring
+document.getElementById("c-back-btn").onclick = backToConversations;
+document.getElementById("c-new-chat-btn").onclick = () => document.querySelector(".c-tab-btn[data-tab='discover']").click();
+document.getElementById("c-conv-search").addEventListener("input", e => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll(".conversation-item").forEach(item => {
+    const name = item.querySelector(".conv-name")?.textContent.toLowerCase() || "";
+    const preview = item.querySelector(".conv-preview")?.textContent.toLowerCase() || "";
+    item.style.display = (!q || name.includes(q) || preview.includes(q)) ? "" : "none";
   });
 });
 
@@ -248,6 +357,21 @@ document.getElementById("c-overlay").onclick = () => { document.querySelectorAll
 // Couple send
 document.getElementById("c-send").onclick = () => handleSend("couple");
 document.getElementById("c-input").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend("couple"); } });
+document.getElementById("c-ai-quick-btn").onclick = () => switchToAiTab("");
+
+// Auto-resize textarea
+function autoResize(el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 120) + "px"; }
+document.getElementById("c-input").addEventListener("input", e => autoResize(e.target));
+
+// Vendor sidebar search
+document.getElementById("c-vendor-search").addEventListener("input", e => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll(".c-vendor-btn").forEach(btn => {
+    const name = (btn.dataset.vendor || "").toLowerCase();
+    const cat  = (btn.dataset.cat  || "").toLowerCase();
+    btn.style.display = (!q || name.includes(q) || cat.includes(q)) ? "" : "none";
+  });
+});
 
 // KB
 document.getElementById("c-file-input").onchange = async e => { for (const f of Array.from(e.target.files || [])) { f.type.startsWith("image/") ? await addImageResource(f) : await addTextResource(f); } e.target.value = ""; renderResources(); };
@@ -269,6 +393,7 @@ function renderManageVendors() {
 // ═══ VENDOR DASHBOARD ═════════════════════════════════════════════════════════
 function showVendorDash() {
   showView("vendor");
+  if (typeof lucide !== "undefined") lucide.createIcons();
   const u = state.currentUser;
   document.getElementById("v-dd-avatar").textContent = u.username.charAt(0).toUpperCase();
   document.getElementById("v-dd-name").textContent = u.profile.businessName || u.username;
@@ -358,8 +483,8 @@ function timeAgo(d) { const s = Math.floor((new Date() - d) / 1000); if (s < 60)
 
 // ═══ TUTORIAL ═════════════════════════════════════════════════════════════════
 const tutSteps = [
-  { target: ".m-wedding-label", text: "This is your wedding workspace. All planning happens here." },
-  { target: "#c-vendor-list", text: "Your vendors are listed here. Click any to open a chat." },
+  { target: ".tab-wedding-chip", text: "Your wedding workspace — all planning, chats, and documents live here." },
+  { target: ".c-tab-btn[data-tab='chat']", text: "The Chat tab is your conversations inbox. Click any vendor to open a thread." },
   { target: ".m-composer", text: "Type messages here. Use @ai for AI help or @ai generate doc to create documents." },
   { target: "#c-settings-btn", text: "Open settings to manage vendors, write reviews, or access your knowledge base." },
 ];
@@ -387,13 +512,15 @@ function handleSend(dash) {
   if (!state.currentUser || state.aiStreaming) return;
   const input = getInput(), text = input.value.trim(); if (!text) return;
   if (!state.joined) { state.cohort = dash === "couple" ? getCoupleWeddingName() : state.cohort; state.joined = true; }
+  if (text.toLowerCase().startsWith("@ai")) {
+    // Redirect @ai commands to the dedicated AI tab
+    input.value = "";
+    const after = text.replace(/^@ai\s*/i, "").trim();
+    switchToAiTab(after);
+    return;
+  }
   addMessage("human", state.currentUser.username, text); input.value = "";
   if (backendOnline && state.cohortId) { apiPost("/api/message", { cohort_id: state.cohortId, user_id: state.userId, content: text, sender_type: "human" }).catch(() => {}); }
-  if (text.toLowerCase().startsWith("@ai")) {
-    const after = text.replace(/^@ai\s*/i, "").trim();
-    const dm = after.match(/^(?:generate|create|make|write)\s+doc(?:ument)?\s*(.*)/i);
-    dm ? generateDocument(dm[1].trim() || after) : respondToAi(after);
-  }
 }
 
 function addMessage(type, author, text) { state.messages.push({ id: crypto.randomUUID(), type, author, text, time: new Date() }); renderMessages(); persistHistory(); }
@@ -413,8 +540,6 @@ function doLogout() {
   }
   state.currentUser = null; state.joined = false; state.messages = []; state.resources = []; state.chunks = []; state.userId = null; state.cohortId = null; state.activeVendorChat = null;
   localStorage.removeItem("wedboard:session");
-  document.getElementById("c-ai-fab").classList.add("hidden");
-  document.getElementById("c-ai-panel").classList.add("hidden");
   showView("landing");
 }
 
@@ -425,7 +550,35 @@ function removeTyping() { const e = document.getElementById("typing-ind"); if (e
 function renderMessages() {
   const feed = getFeed(); feed.innerHTML = "";
   const tpl = document.getElementById("msg-tpl");
-  for (const m of state.messages) { const n = tpl.content.firstElementChild.cloneNode(true); n.classList.add(m.type); n.querySelector(".msg-author").textContent = m.author; n.querySelector(".msg-time").textContent = fmtTime(m.time); n.querySelector(".msg-text").innerHTML = fmtMsg(m.text, m.type); feed.appendChild(n); }
+  let lastDate = null, lastAuthor = null, lastType = null;
+
+  for (const m of state.messages) {
+    // ── Day separator ──────────────────────────────────────────────────
+    const msgDate = new Date(m.time);
+    const dateKey = msgDate.toDateString();
+    if (dateKey !== lastDate) {
+      lastDate = dateKey;
+      lastAuthor = null; // reset grouping on new day
+      const sep = document.createElement("div");
+      sep.className = "msg-day-sep";
+      const today = new Date().toDateString();
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      sep.innerHTML = `<span>${dateKey === today ? "Today" : dateKey === yesterday ? "Yesterday" : msgDate.toLocaleDateString([], { month:"short", day:"numeric" })}</span>`;
+      feed.appendChild(sep);
+    }
+
+    // ── Message grouping: suppress header for consecutive same-author ──
+    const sameGroup = (m.type !== "system") && (m.author === lastAuthor) && (m.type === lastType);
+    lastAuthor = m.author; lastType = m.type;
+
+    const n = tpl.content.firstElementChild.cloneNode(true);
+    n.classList.add(m.type);
+    if (sameGroup) n.classList.add("msg-grouped");
+    n.querySelector(".msg-author").textContent = m.author;
+    n.querySelector(".msg-time").textContent = fmtTime(m.time);
+    n.querySelector(".msg-text").innerHTML = fmtMsg(m.text, m.type);
+    feed.appendChild(n);
+  }
   feed.scrollTop = feed.scrollHeight;
 }
 
@@ -612,16 +765,16 @@ function buildAIMessages(question, chatHistory) {
   return result;
 }
 
-// ── Direct Gemini streaming (OpenAI-compatible endpoint) ──────────────────────
+// ── Direct Gemini streaming (offline fallback via OpenAI-compatible endpoint) ──
 // onChunk(text), onDone(sources=[]), onError(msg)
-async function streamFromOpenAI(messages, onChunk, onDone, onError) {
+async function streamFromGemini(messages, onChunk, onDone, onError) {
   const key = getApiKey();
   if (!key) { onError("no_key"); return; }
   try {
     const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
-      body: JSON.stringify({ model: "gemini-2.5-flash-lite", messages, stream: true, max_tokens: 900, temperature: 0.5 })
+      body: JSON.stringify({ model: "gemini-2.0-flash-lite", messages, stream: true, max_tokens: 900, temperature: 0.5 })
     });
     if (!res.ok) {
       let msg = `Gemini API error (${res.status})`;
@@ -764,14 +917,14 @@ function dispatchAI(messages, backendQuestion, callbacks) {
     }).catch(() => {
       // Backend failed — fall through to direct OpenAI
       removeTypingFn();
-      streamFromOpenAI(messages, onChunk, onDone, onError);
+      streamFromGemini(messages, onChunk, onDone, onError);
     });
     return;
   }
 
   // ── Tier 2: Direct Gemini API (only when backend is confirmed offline) ───────
   if (!backendOnline && getApiKey()) {
-    streamFromOpenAI(messages, onChunk, onDone, onError);
+    streamFromGemini(messages, onChunk, onDone, onError);
     return;
   }
 
@@ -787,12 +940,18 @@ document.querySelectorAll(".c-tab-btn").forEach(btn => {
     btn.classList.add("active");
     document.querySelectorAll(".c-tab-panel").forEach(p => p.classList.add("hidden"));
     document.getElementById("c-tab-" + btn.dataset.tab).classList.remove("hidden");
+    if (btn.dataset.tab === "chat") {
+      document.getElementById("c-conversations-view").classList.remove("hidden");
+      document.getElementById("c-thread-view").classList.add("hidden");
+      renderConversations();
+    }
     if (btn.dataset.tab === "discover")  renderDiscovery();
     if (btn.dataset.tab === "seating")   renderSeating();
     if (btn.dataset.tab === "cards")     initCard();
     if (btn.dataset.tab === "party")     renderParty();
     if (btn.dataset.tab === "budget")    renderBudget();
     if (btn.dataset.tab === "checklist") renderChecklist();
+    if (btn.dataset.tab === "ai-chat")   initAiTab();
   });
 });
 
@@ -1260,21 +1419,26 @@ function addDiscoveredVendor(v) {
   btn.className = "m-chat-item c-vendor-btn";
   btn.dataset.vendor = v.name;
   btn.dataset.cat = fmtCat(v.cat);
+  btn.dataset.color = v.color;
   btn.innerHTML = `<div class="m-avatar ${v.color}">${v.av}</div><div class="m-chat-info"><strong>${esc(v.name)}</strong><span>${fmtCat(v.cat)}</span></div>`;
   btn.addEventListener("click", () => {
-    if (state.currentUser && state.activeVendorChat) saveHistory(state.currentUser.id, `${state.cohort}::${state.activeVendorChat}`, state.messages);
-    document.querySelectorAll(".c-vendor-btn").forEach(i => i.classList.remove("active"));
-    btn.classList.add("active");
-    state.activeVendorChat = btn.dataset.vendor;
-    document.getElementById("c-chat-title").textContent = btn.dataset.vendor;
-    document.getElementById("c-chat-subtitle").textContent = btn.dataset.cat;
-    document.getElementById("c-topbar-avatar").textContent = btn.dataset.vendor.charAt(0);
-    loadCoupleVendorChat();
-    document.querySelector(".c-tab-btn[data-tab='chat']").click();
+    const chatTab = document.querySelector(".c-tab-btn[data-tab='chat']");
+    if (!chatTab.classList.contains("active")) {
+      document.querySelectorAll(".c-tab-btn").forEach(b => b.classList.remove("active"));
+      chatTab.classList.add("active");
+      document.querySelectorAll(".c-tab-panel").forEach(p => p.classList.add("hidden"));
+      document.getElementById("c-tab-chat").classList.remove("hidden");
+    }
+    openThread(btn.dataset.vendor, btn.dataset.cat, v.color);
   });
   list.appendChild(btn);
+  // Switch to chat tab and open the new vendor's thread directly
+  document.querySelectorAll(".c-tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelector(".c-tab-btn[data-tab='chat']").classList.add("active");
+  document.querySelectorAll(".c-tab-panel").forEach(p => p.classList.add("hidden"));
+  document.getElementById("c-tab-chat").classList.remove("hidden");
+  openThread(v.name, fmtCat(v.cat), v.color);
   addMessage("system", "System", `${v.name} added to your vendors!`);
-  document.querySelector(".c-tab-btn[data-tab='chat']").click();
 }
 
 // ═══ SEATING CHART ════════════════════════════════════════════════════════════
@@ -1550,22 +1714,54 @@ document.getElementById("party-modal-save").onclick = () => {
 
 // ═══ BUDGET TRACKER ════════════════════════════════════════════════════════════
 const CAT_META = {
-  venue:       { name:"Venue",       icon:"🏛️", color:"#C1A775" },
-  catering:    { name:"Catering",    icon:"🍽️", color:"#D4909E" },
-  photography: { name:"Photography", icon:"📸",  color:"#7AA890" },
-  florals:     { name:"Florals",     icon:"💐",  color:"#B5A0C8" },
-  music:       { name:"Music / DJ",  icon:"🎵",  color:"#6B9FD4" },
-  attire:      { name:"Attire",      icon:"👗",  color:"#D4A07A" },
-  invitations: { name:"Invitations", icon:"✉️",  color:"#90B890" },
-  decor:       { name:"Décor",       icon:"✨",  color:"#C8A0B0" },
-  other:       { name:"Other",       icon:"📋",  color:"#9B917E" },
+  venue:       { name:"Venue",       icon:"landmark",      color:"#C1A775" },
+  catering:    { name:"Catering",    icon:"utensils",      color:"#D4909E" },
+  photography: { name:"Photography", icon:"camera",        color:"#7AA890" },
+  florals:     { name:"Florals",     icon:"flower-2",      color:"#B5A0C8" },
+  music:       { name:"Music / DJ",  icon:"music",         color:"#6B9FD4" },
+  attire:      { name:"Attire",      icon:"shirt",         color:"#D4A07A" },
+  invitations: { name:"Invitations", icon:"mail",          color:"#90B890" },
+  decor:       { name:"Décor",       icon:"sparkles",      color:"#C8A0B0" },
+  other:       { name:"Other",       icon:"clipboard-list",color:"#9B917E" },
 };
+
+function lucideIcon(name, size, color) {
+  const sz = size || 16;
+  const col = color || "currentColor";
+  return `<i data-lucide="${name}" style="width:${sz}px;height:${sz}px;stroke:${col};display:inline-block;vertical-align:middle"></i>`;
+}
 function getBudgetData() { try { return JSON.parse(localStorage.getItem("wedboard:budget") || "null"); } catch { return null; } }
 function saveBudgetData(d) { localStorage.setItem("wedboard:budget", JSON.stringify(d)); }
 function budgetData()    { const d = getBudgetData(); return d || { total: 0, expenses: [] }; }
 
+// ── Budget duplicate detection ─────────────────────────────────────────────────
+function markBudgetDuplicates(expenses) {
+  const seen = {};
+  expenses.forEach(e => {
+    const key = `${e.description.toLowerCase().trim()}|${e.category}`;
+    seen[key] = (seen[key] || 0) + 1;
+  });
+  expenses.forEach(e => {
+    const key = `${e.description.toLowerCase().trim()}|${e.category}`;
+    e._duplicate = seen[key] > 1;
+  });
+  return expenses;
+}
+
+function removeBudgetDuplicates() {
+  const bd = budgetData();
+  const seen = new Set(); let removed = 0;
+  bd.expenses = bd.expenses.filter(e => {
+    const key = `${e.description.toLowerCase().trim()}|${e.category}`;
+    if (seen.has(key)) { removed++; return false; }
+    seen.add(key); return true;
+  });
+  saveBudgetData(bd);
+  return removed;
+}
+
 function renderBudget() {
-  const d = budgetData(), exp = d.expenses || [];
+  const d = budgetData(), exp = markBudgetDuplicates(d.expenses || []);
   const spent = exp.reduce((s, e) => s + (e.actual || 0), 0);
   const est   = exp.reduce((s, e) => s + (e.estimated || 0), 0);
   const pct   = d.total > 0 ? Math.min((spent / d.total) * 100, 100) : 0;
@@ -1574,12 +1770,21 @@ function renderBudget() {
     ? `$${spent.toLocaleString()} of $${d.total.toLocaleString()} spent · Est. $${est.toLocaleString()}`
     : "Set your total budget to begin";
 
-  document.getElementById("c-budget-overview").innerHTML = d.total > 0 ? `
+  const dupCount = exp.filter(e => e._duplicate).length;
+  const overviewEl = document.getElementById("c-budget-overview");
+  overviewEl.innerHTML = (d.total > 0 ? `
     <div class="budget-overview-card">
       <div class="budget-ov-row"><span class="budget-ov-label">Total Budget</span><span class="budget-ov-amount">$${d.total.toLocaleString()}</span></div>
       <div class="budget-bar-wrap"><div class="budget-bar-fill${over ? " over" : ""}" style="width:${pct}%"></div></div>
       <div class="budget-bar-meta"><span>Spent: $${spent.toLocaleString()}</span><span>${over ? "⚠ Over budget by $" + (spent - d.total).toLocaleString() : "Remaining: $" + (d.total - spent).toLocaleString()}</span></div>
-    </div>` : "";
+    </div>` : "") +
+    (dupCount > 0 ? `<div class="budget-inconsistency-banner" id="budget-dup-banner">${lucideIcon('alert-triangle',16,'#c97a1a')} <span><strong>${dupCount} duplicate expense${dupCount > 1 ? "s" : ""} detected.</strong> These may be inflating your totals.</span><button class="btn btn-ghost btn-sm" id="budget-dedup-btn">Remove duplicates</button></div>` : "");
+
+  if (dupCount > 0) {
+    const dedupBtn = document.getElementById("budget-dedup-btn");
+    if (dedupBtn) dedupBtn.onclick = () => { removeBudgetDuplicates(); renderBudget(); };
+    if (typeof lucide !== "undefined") lucide.createIcons({ el: document.getElementById("budget-dup-banner") });
+  }
 
   const grid = document.getElementById("c-budget-cats"); grid.innerHTML = "";
   const usedCats = [...new Set(exp.map(e => e.category))];
@@ -1593,12 +1798,13 @@ function renderBudget() {
     const cAct = catExp.reduce((s,e)=>s+(e.actual||0),0), cEst = catExp.reduce((s,e)=>s+(e.estimated||0),0);
     const cPct = cEst > 0 ? Math.min((cAct/cEst)*100,100) : 0;
     const card = document.createElement("div"); card.className = "budget-cat-card";
-    card.innerHTML = `<div class="budget-cat-head"><div class="budget-cat-icon" style="background:${meta.color}22">${meta.icon}</div><span class="budget-cat-name">${meta.name}</span></div><div class="budget-cat-amounts"><span>Est. $${cEst.toLocaleString()}</span><span style="color:${cAct>cEst?"var(--danger)":"inherit"}">Actual $${cAct.toLocaleString()}</span></div><div class="budget-cat-bar-wrap"><div class="budget-cat-bar-fill" style="width:${cPct}%;background:${meta.color}"></div></div><div class="budget-cat-expenses">${catExp.map(e=>`<div class="expense-row" data-id="${e.id}"><span class="expense-desc" title="${esc(e.description)}">${esc(e.description)}</span><span class="expense-amount">$${(e.actual||e.estimated||0).toLocaleString()}</span>${e.paid?'<span class="expense-paid-badge">Paid</span>':e.dueDate?`<span class="expense-due-badge">Due ${e.dueDate}</span>`:""}<button class="expense-del" data-id="${e.id}" title="Remove">&times;</button></div>`).join("")}</div>`;
+    card.innerHTML = `<div class="budget-cat-head"><div class="budget-cat-icon" style="background:${meta.color}22">${lucideIcon(meta.icon, 18, meta.color)}</div><span class="budget-cat-name">${meta.name}</span></div><div class="budget-cat-amounts"><span>Est. $${cEst.toLocaleString()}</span><span style="color:${cAct>cEst?"var(--danger)":"inherit"}">Actual $${cAct.toLocaleString()}</span></div><div class="budget-cat-bar-wrap"><div class="budget-cat-bar-fill" style="width:${cPct}%;background:${meta.color}"></div></div><div class="budget-cat-expenses">${catExp.map(e=>`<div class="expense-row" data-id="${e.id}">${e._duplicate?`<span class="expense-dup-flag" title="Duplicate">${lucideIcon('alert-triangle',12,'#c97a1a')}</span>`:""}<span class="expense-desc" title="${esc(e.description)}">${esc(e.description)}</span><span class="expense-amount">$${(e.actual||e.estimated||0).toLocaleString()}</span>${e.paid?'<span class="expense-paid-badge">Paid</span>':e.dueDate?`<span class="expense-due-badge">Due ${e.dueDate}</span>`:""}<button class="expense-del" data-id="${e.id}" title="Remove">&times;</button></div>`).join("")}</div>`;
     card.querySelectorAll(".expense-del").forEach(btn => {
       btn.onclick = ev => { ev.stopPropagation(); const bd = budgetData(); bd.expenses = bd.expenses.filter(x => x.id !== btn.dataset.id); saveBudgetData(bd); renderBudget(); };
     });
     grid.appendChild(card);
   });
+  if (typeof lucide !== "undefined") lucide.createIcons();
 }
 document.getElementById("c-budget-set-btn").onclick = () => {
   document.getElementById("budget-total-input").value = budgetData().total || "";
@@ -1668,18 +1874,19 @@ function renderChecklist() {
     const group = tasks.filter(t => t.timeline === tl); if (!group.length) return;
     const dCnt = group.filter(t => t.done).length;
     const sec = document.createElement("div"); sec.className = "checklist-group";
-    sec.innerHTML = `<div class="checklist-group-header"><span class="checklist-group-title">&#128205; ${esc(tl)}</span><span class="checklist-group-progress">${dCnt}/${group.length}</span></div><div class="checklist-items"></div>`;
+    sec.innerHTML = `<div class="checklist-group-header"><span class="checklist-group-title">${lucideIcon('calendar-clock',14,'var(--accent)')} ${esc(tl)}</span><span class="checklist-group-progress">${dCnt}/${group.length}</span></div><div class="checklist-items"></div>`;
     const itemsEl = sec.querySelector(".checklist-items");
     group.forEach(task => {
       const overdue = task.dueDate && task.dueDate < today && !task.done;
       const item = document.createElement("div"); item.className = "checklist-item" + (task.done ? " done" : "");
-      item.innerHTML = `<div class="checklist-item-check${task.done?" checked":""}"></div><div class="checklist-item-body"><div class="checklist-item-title">${esc(task.title)}</div>${task.dueDate||task.notes?`<div class="checklist-item-meta${overdue?" checklist-item-overdue":""}">${task.dueDate?(overdue?"⚠ Overdue: ":"Due: ")+task.dueDate:""}${task.notes?" · "+esc(task.notes):""}</div>`:""}</div><button class="checklist-item-del" title="Remove">&times;</button>`;
+      item.innerHTML = `<div class="checklist-item-check${task.done?" checked":""}"><span class="check-icon">${task.done ? lucideIcon('check',12,'#fff') : ''}</span></div><div class="checklist-item-body"><div class="checklist-item-title">${esc(task.title)}</div>${task.dueDate||task.notes?`<div class="checklist-item-meta${overdue?" checklist-item-overdue":""}">${task.dueDate?(overdue?`${lucideIcon('alert-triangle',11,'#c97a1a')} Overdue: `:`${lucideIcon('calendar',11,'var(--muted)')} `)+task.dueDate:""}${task.notes?" · "+esc(task.notes):""}</div>`:""}</div><button class="checklist-item-del" title="Remove">${lucideIcon('x',14,'var(--muted)')}</button>`;
       item.querySelector(".checklist-item-check").onclick = () => { const all = checklistTasks(); const t = all.find(x => x.id === task.id); if (t) t.done = !t.done; saveChecklistTasks(all); renderChecklist(); };
       item.querySelector(".checklist-item-del").onclick = () => { saveChecklistTasks(checklistTasks().filter(x => x.id !== task.id)); renderChecklist(); };
       itemsEl.appendChild(item);
     });
     body.appendChild(sec);
   });
+  if (typeof lucide !== "undefined") lucide.createIcons();
 }
 document.getElementById("c-checklist-add-btn").onclick = () => {
   ["task-title","task-due","task-notes"].forEach(id => document.getElementById(id).value = "");
@@ -1788,83 +1995,220 @@ document.getElementById("c-card-theme").addEventListener("click", e => {
 document.getElementById("c-zoom-in").onclick  = () => { if (cardZoom < 1.5) { cardZoom = Math.round((cardZoom + 0.1) * 10) / 10; applyCardZoom(); } };
 document.getElementById("c-zoom-out").onclick = () => { if (cardZoom > 0.5) { cardZoom = Math.round((cardZoom - 0.1) * 10) / 10; applyCardZoom(); } };
 
-// ═══ AI ASSISTANT PANEL ═══════════════════════════════════════════════════════
-const aiPanelState = { messages: [], streaming: false, opened: false };
+// ═══ ACTIONABLE AI COMMANDS ════════════════════════════════════════════════════
+// Returns a formatted confirmation string if a command was executed, else null.
+function tryExecuteActionCommand(q) {
+  const lq = q.toLowerCase().trim();
 
-document.getElementById("c-ai-fab").onclick = () => {
-  const panel = document.getElementById("c-ai-panel");
-  const opening = panel.classList.contains("hidden");
-  panel.classList.toggle("hidden");
-  if (opening) {
-    if (!aiPanelState.opened) {
-      aiPanelState.opened = true;
-      addAiPanelMsg("ai", "Hello! I'm your AI Wedding Planner. ✦\n\nAsk me anything — vendor tips, budgeting, timelines, seating, flowers, or anything else for your big day.");
-    }
-    setTimeout(() => document.getElementById("c-ai-panel-input").focus(), 80);
+  // ── Budget: "add $500 to florals" / "add 500 to the catering budget" ─────────
+  const budgetAdd = q.match(/add\s+\$?(\d+(?:\.\d+)?)\s+(?:to|for)\s+(?:the\s+)?(\w+(?:\s+\w+)??)(?:\s+budget)?$/i);
+  if (budgetAdd) {
+    const amount = parseFloat(budgetAdd[1]);
+    const rawCat = budgetAdd[2].toLowerCase().trim();
+    const catMap = {
+      venue:        "venue",
+      catering:     "catering",    food:       "catering",   dining:      "catering",
+      photography:  "photography", photo:      "photography",photographer:"photography",
+      florals:      "florals",     floral:     "florals",    flowers:     "florals",
+      music:        "music",       dj:         "music",      band:        "music",
+      attire:       "attire",      dress:      "attire",     suit:        "attire",
+      invitations:  "invitations", invitation: "invitations",stationery:  "invitations",
+      decor:        "decor",       decoration: "decor",
+      other:        "other",
+    };
+    const catId = catMap[rawCat] || "other";
+    const meta = CAT_META[catId];
+    const bd = budgetData();
+    bd.expenses.push({
+      id: crypto.randomUUID(),
+      description: `AI: ${rawCat} expense`,
+      category: catId,
+      estimated: amount,
+      actual: amount,
+      dueDate: "",
+      paid: false
+    });
+    saveBudgetData(bd);
+    renderBudget();
+    return `✅ **Done!** Added **$${amount.toLocaleString()}** to the **${meta.name}** budget.\n\nSwitch to the **Budget** tab to review your expenses.`;
   }
+
+  // ── Budget: "remove duplicate expenses" / "clean up budget" ──────────────────
+  if (lq.match(/(?:remove|delete|clean\s*up|deduplicate|fix)\s+duplicate/)) {
+    const removed = removeBudgetDuplicates();
+    renderBudget();
+    return removed > 0
+      ? `✅ Removed **${removed}** duplicate expense${removed > 1 ? "s" : ""} from your budget.`
+      : `No exact duplicates found in your budget — it looks clean! ✦`;
+  }
+
+  // ── Checklist: "check off venue" / "mark 'send save-the-dates' as done" ─────
+  const checkOff = q.match(/(?:check\s+off|complete|mark(?:\s+off)?|tick\s+off)\s+(?:the\s+)?['"]?(.+?)['"]?(?:\s+(?:from|in|on|off)\s+(?:the\s+)?checklist)?(?:\s+as\s+done)?$/i);
+  if (checkOff) {
+    const needle = checkOff[1].trim().toLowerCase();
+    const tasks = checklistTasks();
+    const matches = tasks.filter(t => t.title.toLowerCase().includes(needle));
+    if (matches.length === 1) {
+      matches[0].done = true;
+      saveChecklistTasks(tasks);
+      // If checklist tab is active, re-render
+      if (!document.getElementById("c-tab-checklist").classList.contains("hidden")) renderChecklist();
+      return `✅ **"${matches[0].title}"** marked as complete!\n\nSwitch to the **Checklist** tab to see your progress.`;
+    } else if (matches.length > 1) {
+      return `Found ${matches.length} matching tasks:\n${matches.map(t => `- ${t.title}`).join("\n")}\n\nPlease be more specific to check off just one.`;
+    } else {
+      return `I couldn't find a checklist task matching *"${needle}"*. Check the **Checklist** tab for exact task names.`;
+    }
+  }
+
+  // ── Checklist: "uncheck / reopen venue" ──────────────────────────────────────
+  const uncheck = q.match(/(?:uncheck|reopen|undo|unmark)\s+(?:the\s+)?['"]?(.+?)['"]?(?:\s+(?:from|in|on)\s+(?:the\s+)?checklist)?$/i);
+  if (uncheck) {
+    const needle = uncheck[1].trim().toLowerCase();
+    const tasks = checklistTasks();
+    const match = tasks.find(t => t.title.toLowerCase().includes(needle));
+    if (match) {
+      match.done = false;
+      saveChecklistTasks(tasks);
+      if (!document.getElementById("c-tab-checklist").classList.contains("hidden")) renderChecklist();
+      return `↩️ **"${match.title}"** reopened — marked as not done.`;
+    }
+  }
+
+  return null; // not a recognized command — hand off to AI
+}
+
+// ═══ AI ASSISTANT TAB ═════════════════════════════════════════════════════════
+const aiTabState = { messages: [], streaming: false, initialized: false };
+
+function initAiTab() {
+  if (!aiTabState.initialized) {
+    aiTabState.initialized = true;
+    addAiTabMsg("ai", "Hello! I'm your AI Wedding Planner. ✦\n\nAsk me anything — vendor tips, budgeting, timelines, seating — or give me a command like:\n- *\"Add $800 to the catering budget\"*\n- *\"Check off 'Send save-the-dates' from the checklist\"*\n- *\"Show me my budget summary\"*");
+  }
+}
+
+function switchToAiTab(question) {
+  // Activate the AI tab
+  document.querySelectorAll(".c-tab-btn").forEach(b => b.classList.remove("active"));
+  const aiBtn = document.querySelector('.c-tab-btn[data-tab="ai-chat"]');
+  if (aiBtn) aiBtn.classList.add("active");
+  document.querySelectorAll(".c-tab-panel").forEach(p => p.classList.add("hidden"));
+  document.getElementById("c-tab-ai-chat").classList.remove("hidden");
+  initAiTab();
+  if (question) {
+    document.getElementById("c-ai-tab-input").value = question;
+    sendAiTab();
+  } else {
+    setTimeout(() => document.getElementById("c-ai-tab-input").focus(), 80);
+  }
+}
+
+document.getElementById("c-ai-tab-send").onclick = sendAiTab;
+document.getElementById("c-ai-tab-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendAiTab(); }
+});
+document.getElementById("c-ai-tab-clear").onclick = () => {
+  aiTabState.messages = []; aiTabState.initialized = false;
+  document.getElementById("c-ai-tab-feed").innerHTML = "";
+  document.getElementById("c-ai-tab-suggestions").style.display = "";
+  initAiTab();
 };
-
-document.getElementById("c-ai-panel-close").onclick = () =>
-  document.getElementById("c-ai-panel").classList.add("hidden");
-
-document.getElementById("c-ai-panel-send").onclick = sendAiPanel;
-document.getElementById("c-ai-panel-input").addEventListener("keydown", e => {
-  if (e.key === "Enter") sendAiPanel();
+document.querySelectorAll(".ai-suggestion-chip").forEach(chip => {
+  chip.onclick = () => {
+    document.getElementById("c-ai-tab-input").value = chip.dataset.q;
+    sendAiTab();
+  };
 });
 
-function sendAiPanel() {
-  if (aiPanelState.streaming) return;
-  const input = document.getElementById("c-ai-panel-input");
+function sendAiTab() {
+  if (aiTabState.streaming) return;
+  const input = document.getElementById("c-ai-tab-input");
   const q = input.value.trim(); if (!q) return;
   input.value = "";
 
-  // Build context from current history before adding the new message
-  const panelHistory = aiPanelState.messages.map(m => ({
+  // Hide suggestion chips after first message
+  document.getElementById("c-ai-tab-suggestions").style.display = "none";
+
+  // Try to parse and execute action commands first
+  const actionResult = tryExecuteActionCommand(q);
+  if (actionResult) {
+    addAiTabMsg("human", q);
+    addAiTabMsg("ai", actionResult);
+    return;
+  }
+
+  const tabHistory = aiTabState.messages.map(m => ({
     type: m.role === "ai" ? "ai" : "user",
     author: m.role === "ai" ? "AI Assistant" : "You",
     text: m.text
   }));
-  const messages = buildAIMessages(q, panelHistory);
+  const messages = buildAIMessages(q, tabHistory);
 
-  addAiPanelMsg("human", q);
-  aiPanelState.streaming = true;
+  addAiTabMsg("human", q);
+  aiTabState.streaming = true;
+  document.getElementById("c-ai-tab-retrieval").textContent = "Thinking…";
 
-  const feed = document.getElementById("c-ai-panel-feed");
+  const feed = document.getElementById("c-ai-tab-feed");
   let msgEl = null, full = "";
 
   dispatchAI(messages, q, {
-    showTypingFn: showAiPanelTyping,
-    removeTypingFn: removeAiPanelTyping,
+    showTypingFn: showAiTabTyping,
+    removeTypingFn: removeAiTabTyping,
     onThinking(text) {
-      const ind = document.getElementById("ai-panel-typing");
-      if (ind) {
-        let lbl = ind.querySelector(".ap-think-lbl");
-        if (!lbl) { lbl = document.createElement("div"); lbl.className = "ap-think-lbl ai-panel-msg-text"; ind.appendChild(lbl); }
-        lbl.textContent = text;
-      }
+      const ind = document.getElementById("ai-tab-typing");
+      if (ind) { let lbl = ind.querySelector(".ap-think-lbl"); if (!lbl) { lbl = document.createElement("div"); lbl.className = "ap-think-lbl ai-panel-msg-text"; ind.appendChild(lbl); } lbl.textContent = text; }
     },
     onChunk(chunk) {
-      removeAiPanelTyping();
-      if (!msgEl) { msgEl = createAiPanelMsgEl("ai"); feed.appendChild(msgEl); }
+      removeAiTabTyping();
+      if (!msgEl) { msgEl = createAiTabMsgEl("ai"); feed.appendChild(msgEl); }
       full += chunk;
-      msgEl.querySelector(".ai-panel-msg-text").innerHTML = renderMd(full);
+      msgEl.querySelector(".ai-tab-msg-text").innerHTML = renderMd(full);
       feed.scrollTop = feed.scrollHeight;
     },
-    onDone() {
-      if (full) aiPanelState.messages.push({ role: "ai", text: full });
-      aiPanelState.streaming = false;
+    onDone(sources) {
+      if (full && sources && sources.length) {
+        full += `\n\n*Sources: ${sources.join(", ")}*`;
+        if (msgEl) msgEl.querySelector(".ai-tab-msg-text").innerHTML = renderMd(full);
+      }
+      if (full) aiTabState.messages.push({ role: "ai", text: full });
+      aiTabState.streaming = false;
+      document.getElementById("c-ai-tab-retrieval").textContent = sources && sources.length ? "Grounded" : "AI";
     },
     onError(err) {
-      removeAiPanelTyping();
-      aiPanelState.streaming = false;
+      removeAiTabTyping();
+      aiTabState.streaming = false;
+      document.getElementById("c-ai-tab-retrieval").textContent = "Local";
       if (err === "no_key") {
-        addAiPanelMsg("ai", aiLocalResponse(q) + "\n\n---\n*Add an OpenAI API key in **Settings → Configure AI** for live AI responses.*");
+        addAiTabMsg("ai", aiLocalResponse(q) + "\n\n---\n*Configure AI in **Settings → Configure AI** for live responses.*");
       } else {
-        addAiPanelMsg("ai", `**AI error:** ${err}`);
+        addAiTabMsg("ai", `**AI error:** ${err}`);
       }
     }
   });
 }
+
+function addAiTabMsg(role, text) {
+  aiTabState.messages.push({ role, text });
+  const el = createAiTabMsgEl(role);
+  el.querySelector(".ai-tab-msg-text").innerHTML = role === "ai" ? renderMd(text) : esc(text).replace(/\n/g, "<br>");
+  const feed = document.getElementById("c-ai-tab-feed");
+  feed.appendChild(el); feed.scrollTop = feed.scrollHeight;
+}
+function createAiTabMsgEl(role) {
+  const el = document.createElement("div");
+  el.className = `ai-tab-msg ai-tab-msg--${role}`;
+  el.innerHTML = `<div class="ai-tab-msg-text"></div>`;
+  return el;
+}
+function showAiTabTyping() {
+  removeAiTabTyping();
+  const el = createAiTabMsgEl("ai"); el.id = "ai-tab-typing";
+  el.innerHTML = `<div class="typing-indicator"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+  const feed = document.getElementById("c-ai-tab-feed");
+  feed.appendChild(el); feed.scrollTop = feed.scrollHeight;
+}
+function removeAiTabTyping() { const el = document.getElementById("ai-tab-typing"); if (el) el.remove(); }
 
 function aiLocalResponse(q) {
   const lq = q.toLowerCase();
@@ -1897,30 +2241,6 @@ function aiLocalResponse(q) {
   return "I'm here to help with every part of your wedding planning! Ask me about **budgeting, timelines, vendors, seating, flowers, catering, photography, music, invitations**, or anything else on your mind. ✦";
 }
 
-function addAiPanelMsg(role, text) {
-  aiPanelState.messages.push({ role, text });
-  const el = createAiPanelMsgEl(role);
-  el.querySelector(".ai-panel-msg-text").innerHTML = role === "ai" ? renderMd(text) : esc(text).replace(/\n/g, "<br>");
-  const feed = document.getElementById("c-ai-panel-feed");
-  feed.appendChild(el); feed.scrollTop = feed.scrollHeight;
-}
-function createAiPanelMsgEl(role) {
-  const el = document.createElement("div");
-  el.className = `ai-panel-msg ai-panel-msg--${role}`;
-  el.innerHTML = `<div class="ai-panel-msg-text"></div>`;
-  return el;
-}
-function showAiPanelTyping() {
-  removeAiPanelTyping();
-  const el = createAiPanelMsgEl("ai"); el.id = "ai-panel-typing";
-  el.innerHTML = `<div class="typing-indicator"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
-  const feed = document.getElementById("c-ai-panel-feed");
-  feed.appendChild(el); feed.scrollTop = feed.scrollHeight;
-}
-function removeAiPanelTyping() {
-  const el = document.getElementById("ai-panel-typing"); if (el) el.remove();
-}
-
 // ═══ AI KEY MODAL ══════════════════════════════════════════════════════════════
 function openAiKeyModal() {
   const modal = document.getElementById("ai-key-modal");
@@ -1947,7 +2267,7 @@ document.getElementById("ai-key-save").onclick = () => {
   const status = document.getElementById("ai-key-status");
   const val = input.value.trim();
   if (!val) { status.textContent = "Enter a key first."; status.className = "modal-hint warn"; return; }
-  if (!val.startsWith("sk-")) { status.textContent = "Key should start with sk-…"; status.className = "modal-hint warn"; return; }
+  if (!val.startsWith("AIza")) { status.textContent = "Gemini keys start with AIza…"; status.className = "modal-hint warn"; return; }
   saveApiKey(val);
   status.textContent = "Key saved successfully.";
   status.className = "modal-hint ok";
@@ -1970,3 +2290,8 @@ document.getElementById("c-card-download").onclick = () => {
   win.document.write(`<!DOCTYPE html><html><head><title>Wedding Card</title><style>${styles}</style></head><body>${cardEl.outerHTML}</body></html>`);
   win.document.close(); win.focus(); win.print();
 };
+
+// ── Global Lucide init (renders icons in static HTML on first load) ──────────
+document.addEventListener("DOMContentLoaded", () => {
+  if (typeof lucide !== "undefined") lucide.createIcons();
+});
